@@ -12,6 +12,8 @@ import {
   MoonIcon,
   DevicePhoneMobileIcon,
 } from "@heroicons/react/24/outline";
+import { useUser, useClerk } from "@clerk/nextjs";
+import { useSimpleTheme } from "@/components/SimpleThemeProvider";
 
 interface SettingSection {
   id: string;
@@ -21,6 +23,10 @@ interface SettingSection {
 }
 
 export default function SettingsPage() {
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const { theme, setTheme, isDark } = useSimpleTheme();
+  
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [notifications, setNotifications] = useState({
     messages: true,
@@ -33,7 +39,12 @@ export default function SettingsPage() {
     onlineStatus: true,
     readReceipts: true,
   });
-  const [theme, setTheme] = useState<"light" | "dark" | "system">("light");
+
+  const handleSignOut = () => {
+    signOut(() => {
+      window.location.href = "/";
+    });
+  };
 
   const settingSections: SettingSection[] = [
     {
@@ -63,9 +74,9 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
+    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
       {/* Mobile Header */}
-      <div className="lg:hidden bg-white border-b border-gray-200 px-4 py-4 sticky top-0 z-10">
+      <div className="lg:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-4 sticky top-0 z-10">
         {activeSection ? (
           <div className="flex items-center">
             <button
@@ -74,24 +85,24 @@ export default function SettingsPage() {
             >
               <ChevronRightIcon className="w-5 h-5 text-gray-600 rotate-180" />
             </button>
-            <h1 className="text-lg font-semibold text-gray-900">
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
               {settingSections.find(s => s.id === activeSection)?.title}
             </h1>
           </div>
         ) : (
-          <h1 className="text-xl font-bold text-gray-900">Settings</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Settings</h1>
         )}
       </div>
 
       {/* Desktop Header */}
-      <div className="hidden lg:block bg-white border-b border-gray-200 px-8 py-6">
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-sm text-gray-600 mt-1">Manage your preferences</p>
+      <div className="hidden lg:block bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
+        <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">Manage your preferences</p>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
         {/* Desktop Sidebar */}
-        <div className="hidden lg:flex flex-col w-80 bg-white border-r border-gray-200">
+        <div className="hidden lg:flex flex-col w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
           <nav className="flex-1 p-4">
             {settingSections.map((section) => {
               const Icon = section.icon;
@@ -118,7 +129,10 @@ export default function SettingsPage() {
           </nav>
           
           <div className="p-4 border-t border-gray-100">
-            <button className="w-full flex items-center px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 transition-all">
+            <button 
+              onClick={handleSignOut}
+              className="w-full flex items-center px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 transition-all"
+            >
               <ArrowRightOnRectangleIcon className="w-5 h-5 mr-3" />
               <span className="font-medium text-sm">Sign Out</span>
             </button>
@@ -155,7 +169,10 @@ export default function SettingsPage() {
                 })}
                 
                 {/* Sign Out Button - Mobile */}
-                <button className="w-full flex items-center justify-between p-4 bg-white rounded-xl hover:bg-red-50 transition-all mt-6">
+                <button 
+                  onClick={handleSignOut}
+                  className="w-full flex items-center justify-between p-4 bg-white rounded-xl hover:bg-red-50 transition-all mt-6"
+                >
                   <div className="flex items-center">
                     <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
                       <ArrowRightOnRectangleIcon className="w-5 h-5 text-red-600" />
@@ -374,41 +391,44 @@ export default function SettingsPage() {
       case "appearance":
         return (
           <div className="space-y-4">
-            <div className="bg-white rounded-xl p-4 lg:p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Theme</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 lg:p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Theme</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Choose your preferred theme. System will follow your device settings.
+              </p>
               <div className="grid grid-cols-3 gap-3">
                 <button
                   onClick={() => setTheme("light")}
                   className={`p-4 rounded-lg border-2 transition-all ${
                     theme === "light"
-                      ? "border-primary-500 bg-primary-50"
-                      : "border-gray-200 hover:border-gray-300 bg-white"
+                      ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20"
+                      : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-700"
                   }`}
                 >
-                  <SunIcon className="w-8 h-8 mx-auto mb-2 text-gray-700" />
-                  <p className="text-sm font-medium text-gray-900">Light</p>
+                  <SunIcon className={`w-8 h-8 mx-auto mb-2 ${theme === "light" ? "text-primary-600" : "text-gray-700 dark:text-gray-300"}`} />
+                  <p className={`text-sm font-medium ${theme === "light" ? "text-primary-700 dark:text-primary-300" : "text-gray-900 dark:text-gray-200"}`}>Light</p>
                 </button>
                 <button
                   onClick={() => setTheme("dark")}
                   className={`p-4 rounded-lg border-2 transition-all ${
                     theme === "dark"
-                      ? "border-primary-500 bg-primary-50"
-                      : "border-gray-200 hover:border-gray-300 bg-white"
+                      ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20"
+                      : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-700"
                   }`}
                 >
-                  <MoonIcon className="w-8 h-8 mx-auto mb-2 text-gray-700" />
-                  <p className="text-sm font-medium text-gray-900">Dark</p>
+                  <MoonIcon className={`w-8 h-8 mx-auto mb-2 ${theme === "dark" ? "text-primary-600" : "text-gray-700 dark:text-gray-300"}`} />
+                  <p className={`text-sm font-medium ${theme === "dark" ? "text-primary-700 dark:text-primary-300" : "text-gray-900 dark:text-gray-200"}`}>Dark</p>
                 </button>
                 <button
                   onClick={() => setTheme("system")}
                   className={`p-4 rounded-lg border-2 transition-all ${
                     theme === "system"
-                      ? "border-primary-500 bg-primary-50"
-                      : "border-gray-200 hover:border-gray-300 bg-white"
+                      ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20"
+                      : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-700"
                   }`}
                 >
-                  <DevicePhoneMobileIcon className="w-8 h-8 mx-auto mb-2 text-gray-700" />
-                  <p className="text-sm font-medium text-gray-900">System</p>
+                  <DevicePhoneMobileIcon className={`w-8 h-8 mx-auto mb-2 ${theme === "system" ? "text-primary-600" : "text-gray-700 dark:text-gray-300"}`} />
+                  <p className={`text-sm font-medium ${theme === "system" ? "text-primary-700 dark:text-primary-300" : "text-gray-900 dark:text-gray-200"}`}>System</p>
                 </button>
               </div>
             </div>
@@ -432,39 +452,134 @@ export default function SettingsPage() {
       case "account":
         return (
           <div className="space-y-4">
+            {/* User Profile Section */}
             <div className="bg-white rounded-xl p-4 lg:p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Account Information</h2>
-              <div className="space-y-4">
+              <h2 className="text-lg font-semibold text-gray-900 mb-6">Account Information</h2>
+              
+              <div className="flex items-center space-x-4 mb-6">
+                {user?.imageUrl ? (
+                  <img 
+                    src={user.imageUrl} 
+                    alt={user?.fullName || "User avatar"}
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                    <UserCircleIcon className="w-10 h-10 text-gray-400" />
+                  </div>
+                )}
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">Name</p>
-                  <p className="font-medium text-gray-900">John Doe</p>
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    {user?.fullName || "User"}
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    Member since {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "Recently"}
+                  </p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Email</p>
-                  <p className="font-medium text-gray-900">john.doe@example.com</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Full Name</p>
+                    <p className="font-medium text-gray-900">{user?.fullName || "Not provided"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">First Name</p>
+                    <p className="font-medium text-gray-900">{user?.firstName || "Not provided"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Last Name</p>
+                    <p className="font-medium text-gray-900">{user?.lastName || "Not provided"}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Phone</p>
-                  <p className="font-medium text-gray-900">+1 (555) 123-4567</p>
+                
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Email Address</p>
+                    <p className="font-medium text-gray-900">
+                      {user?.emailAddresses[0]?.emailAddress || "Not provided"}
+                    </p>
+                    {user?.emailAddresses[0]?.verification?.status && (
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 ${
+                        user.emailAddresses[0].verification.status === 'verified' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {user.emailAddresses[0].verification.status === 'verified' ? 'Verified' : 'Unverified'}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Phone Number</p>
+                    <p className="font-medium text-gray-900">
+                      {user?.phoneNumbers?.[0]?.phoneNumber || "Not provided"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Username</p>
+                    <p className="font-medium text-gray-900">
+                      {user?.username || "Not set"}
+                    </p>
+                  </div>
                 </div>
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-gray-200">
                 <button className="px-4 py-2 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors">
-                  Edit Account Info
+                  Manage Account in Clerk
                 </button>
               </div>
             </div>
 
+            {/* Account Actions */}
             <div className="bg-white rounded-xl p-4 lg:p-6">
-              <h3 className="font-semibold text-gray-900 mb-3">Account Actions</h3>
-              <div className="space-y-2">
-                <button className="w-full text-left px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                  Change Password
+              <h3 className="font-semibold text-gray-900 mb-4">Account Actions</h3>
+              <div className="space-y-3">
+                <button className="w-full text-left px-4 py-3 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-between">
+                  <span>Manage Security Settings</span>
+                  <ChevronRightIcon className="w-4 h-4 text-gray-400" />
                 </button>
-                <button className="w-full text-left px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                  Download Your Data
+                <button className="w-full text-left px-4 py-3 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-between">
+                  <span>Connected Accounts</span>
+                  <ChevronRightIcon className="w-4 h-4 text-gray-400" />
                 </button>
-                <button className="w-full text-left px-4 py-2 text-sm font-medium border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors">
-                  Delete Account
+                <button className="w-full text-left px-4 py-3 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-between">
+                  <span>Download Your Data</span>
+                  <ChevronRightIcon className="w-4 h-4 text-gray-400" />
                 </button>
+                <button 
+                  onClick={handleSignOut}
+                  className="w-full text-left px-4 py-3 text-sm font-medium border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors flex items-center justify-between"
+                >
+                  <span>Sign Out</span>
+                  <ArrowRightOnRectangleIcon className="w-4 h-4 text-red-500" />
+                </button>
+              </div>
+            </div>
+
+            {/* Account Statistics */}
+            <div className="bg-white rounded-xl p-4 lg:p-6">
+              <h3 className="font-semibold text-gray-900 mb-4">Account Statistics</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-primary-600">0</p>
+                  <p className="text-sm text-gray-500">Messages Sent</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-primary-600">0</p>
+                  <p className="text-sm text-gray-500">Friends</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-primary-600">0</p>
+                  <p className="text-sm text-gray-500">Chats</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-primary-600">
+                    {user?.createdAt ? Math.floor((Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24)) : 0}
+                  </p>
+                  <p className="text-sm text-gray-500">Days Active</p>
+                </div>
               </div>
             </div>
           </div>
