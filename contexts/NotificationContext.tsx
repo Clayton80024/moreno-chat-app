@@ -50,7 +50,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       new Notification(notification.title, {
         body: notification.message,
         icon: '/favicon.ico',
-        tag: notification.id
+        tag: newNotification.id
       });
     }
   }, []);
