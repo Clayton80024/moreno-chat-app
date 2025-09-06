@@ -2,21 +2,21 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Home() {
   const router = useRouter();
-  const { isSignedIn, isLoaded } = useUser();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    // Only redirect if user is signed in and Clerk has loaded
-    if (isLoaded && isSignedIn) {
+    // Only redirect if user is signed in and auth has loaded
+    if (!loading && user) {
       router.push("/chats");
     }
-  }, [router, isSignedIn, isLoaded]);
+  }, [router, user, loading]);
 
-  // Show loading state while Clerk is determining auth status
-  if (!isLoaded) {
+  // Show loading state while determining auth status
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
@@ -32,7 +32,7 @@ export default function Home() {
   }
 
   // If user is signed in, show loading while redirecting
-  if (isSignedIn) {
+  if (user) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">

@@ -12,7 +12,7 @@ import {
   MoonIcon,
   DevicePhoneMobileIcon,
 } from "@heroicons/react/24/outline";
-import { useUser, useClerk } from "@clerk/nextjs";
+import { useAuth } from "@/contexts/AuthContext";
 import { useSimpleTheme } from "@/components/SimpleThemeProvider";
 
 interface SettingSection {
@@ -23,8 +23,7 @@ interface SettingSection {
 }
 
 export default function SettingsPage() {
-  const { user } = useUser();
-  const { signOut } = useClerk();
+  const { user, signOut } = useAuth();
   const { theme, setTheme, isDark } = useSimpleTheme();
   
   const [activeSection, setActiveSection] = useState<string | null>(null);
@@ -40,10 +39,12 @@ export default function SettingsPage() {
     readReceipts: true,
   });
 
-  const handleSignOut = () => {
-    signOut(() => {
-      window.location.href = "/";
-    });
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const settingSections: SettingSection[] = [
@@ -457,23 +458,25 @@ export default function SettingsPage() {
               <h2 className="text-lg font-semibold text-gray-900 mb-6">Account Information</h2>
               
               <div className="flex items-center space-x-4 mb-6">
-                {user?.imageUrl ? (
+                {user?.user_metadata?.avatar_url ? (
                   <img 
-                    src={user.imageUrl} 
-                    alt={user?.fullName || "User avatar"}
+                    src={user.user_metadata.avatar_url} 
+                    alt={user?.user_metadata?.full_name || "User avatar"}
                     className="w-16 h-16 rounded-full object-cover"
                   />
                 ) : (
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
-                    <UserCircleIcon className="w-10 h-10 text-gray-400" />
+                  <div className="w-16 h-16 bg-gradient-to-r from-primary-600 to-accent-600 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-xl">
+                      {user?.user_metadata?.full_name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                    </span>
                   </div>
                 )}
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900">
-                    {user?.fullName || "User"}
+                    {user?.user_metadata?.full_name || "User"}
                   </h3>
                   <p className="text-sm text-gray-500">
-                    Member since {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "Recently"}
+                    Member since {user?.created_at ? new Date(user.created_at).toLocaleDateString() : "Recently"}
                   </p>
                 </div>
               </div>
@@ -482,15 +485,11 @@ export default function SettingsPage() {
                 <div className="space-y-4">
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Full Name</p>
-                    <p className="font-medium text-gray-900">{user?.fullName || "Not provided"}</p>
+                    <p className="font-medium text-gray-900">{user?.user_metadata?.full_name || "Not provided"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">First Name</p>
-                    <p className="font-medium text-gray-900">{user?.firstName || "Not provided"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Last Name</p>
-                    <p className="font-medium text-gray-900">{user?.lastName || "Not provided"}</p>
+                    <p className="text-sm text-gray-500 mb-1">User ID</p>
+                    <p className="font-medium text-gray-900 text-xs font-mono bg-gray-100 p-2 rounded">{user?.id || "Not provided"}</p>
                   </div>
                 </div>
                 
@@ -498,28 +497,18 @@ export default function SettingsPage() {
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Email Address</p>
                     <p className="font-medium text-gray-900">
-                      {user?.emailAddresses[0]?.emailAddress || "Not provided"}
+                      {user?.email || "Not provided"}
                     </p>
-                    {user?.emailAddresses[0]?.verification?.status && (
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 ${
-                        user.emailAddresses[0].verification.status === 'verified' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {user.emailAddresses[0].verification.status === 'verified' ? 'Verified' : 'Unverified'}
+                    {user?.email_confirmed_at && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 bg-green-100 text-green-800">
+                        Verified
                       </span>
                     )}
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Phone Number</p>
                     <p className="font-medium text-gray-900">
-                      {user?.phoneNumbers?.[0]?.phoneNumber || "Not provided"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Username</p>
-                    <p className="font-medium text-gray-900">
-                      {user?.username || "Not set"}
+                      {user?.phone || "Not provided"}
                     </p>
                   </div>
                 </div>
@@ -527,7 +516,7 @@ export default function SettingsPage() {
 
               <div className="mt-6 pt-6 border-t border-gray-200">
                 <button className="px-4 py-2 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors">
-                  Manage Account in Clerk
+                  Update Profile
                 </button>
               </div>
             </div>
@@ -576,7 +565,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold text-primary-600">
-                    {user?.createdAt ? Math.floor((Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24)) : 0}
+                    {user?.created_at ? Math.floor((Date.now() - new Date(user.created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0}
                   </p>
                   <p className="text-sm text-gray-500">Days Active</p>
                 </div>

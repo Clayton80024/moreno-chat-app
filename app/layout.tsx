@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import LayoutWrapper from "@/components/LayoutWrapper";
-import { ClerkProvider } from '@clerk/nextjs';
+import { AuthProvider } from '@/contexts/AuthContext';
 import { SimpleThemeProvider } from '@/components/SimpleThemeProvider';
+import { RealtimeProvider } from '@/contexts/RealtimeContext';
+import { NotificationProvider } from '@/contexts/NotificationContext';
+import { ToastProvider } from '@/components/Toast';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,16 +21,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
-      <html lang="en" suppressHydrationWarning>
-        <body className={`${inter.className} antialiased bg-gray-50 dark:bg-gray-900`}>
-          <SimpleThemeProvider>
-            <LayoutWrapper>
-              {children}
-            </LayoutWrapper>
-          </SimpleThemeProvider>
-        </body>
-      </html>
-    </ClerkProvider>
+    <html lang="en" suppressHydrationWarning>
+                  <body className={`${inter.className} antialiased bg-gray-50 dark:bg-gray-900`}>
+              <AuthProvider>
+                <RealtimeProvider>
+                  <NotificationProvider>
+                    <ToastProvider>
+                      <SimpleThemeProvider>
+                        <LayoutWrapper>
+                          {children}
+                        </LayoutWrapper>
+                      </SimpleThemeProvider>
+                    </ToastProvider>
+                  </NotificationProvider>
+                </RealtimeProvider>
+              </AuthProvider>
+            </body>
+    </html>
   );
 }

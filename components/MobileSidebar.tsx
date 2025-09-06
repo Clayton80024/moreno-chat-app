@@ -19,6 +19,7 @@ import {
   UserCircleIcon as ProfileSolid,
   Cog6ToothIcon as SettingsSolid,
 } from "@heroicons/react/24/solid";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface MobileSidebarProps {
   isOpen: boolean;
@@ -34,6 +35,7 @@ const navigation = [
 
 export default function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
   const pathname = usePathname();
+  const { profile } = useAuth();
 
   return (
     <Transition.Root show={isOpen} as={Fragment}>
@@ -81,6 +83,7 @@ export default function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
                   <input
                     type="text"
                     placeholder="Search conversations..."
+                    aria-label="Search conversations"
                     className="w-full pl-10 pr-4 py-2.5 bg-gray-50 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:bg-white transition-all"
                   />
                 </div>
@@ -114,25 +117,41 @@ export default function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
                 </nav>
 
                 {/* New Chat Button */}
-                <button className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 transition-all duration-200 shadow-md hover:shadow-lg">
+                <button 
+                  type="button"
+                  aria-label="Start new chat"
+                  className="w-full text-black flex items-center justify-center px-4 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 transition-all duration-200 shadow-md hover:shadow-lg"
+                >
                   <PlusCircleIcon className="w-5 h-5 mr-2" />
-                  <span className="font-medium">New Chat</span>
+                  <span className="font-medium text-black">New Chat</span>
                 </button>
 
                 {/* User Profile Section */}
                 <div className="border-t border-gray-100 pt-4">
                   <div className="flex items-center px-3 py-2">
                     <div className="relative">
-                      <img 
-                        src="https://i.pravatar.cc/150?img=7" 
-                        alt="John Doe"
-                        className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-md"
-                      />
-                      <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-online rounded-full border-2 border-white"></div>
+                      {profile?.avatar_url ? (
+                        <img 
+                          src={profile.avatar_url} 
+                          alt={profile.full_name || "User"}
+                          className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-md"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 bg-gradient-to-br from-primary-400 to-accent-400 rounded-full flex items-center justify-center text-white font-bold text-lg border-2 border-white shadow-md">
+                          {(profile?.full_name || 'U').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${
+                        profile?.is_online ? 'bg-green-500' : 'bg-gray-400'
+                      }`}></div>
                     </div>
                     <div className="ml-3 flex-1">
-                      <p className="text-sm font-medium text-gray-900">John Doe</p>
-                      <p className="text-xs text-gray-500">Online</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {profile?.full_name || "User"}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {profile?.is_online ? 'Online' : 'Offline'}
+                      </p>
                     </div>
                   </div>
                 </div>

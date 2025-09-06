@@ -12,11 +12,13 @@ import {
   BoltIcon,
   GlobeAltIcon
 } from "@heroicons/react/24/outline";
-import { SignInButton, SignUpButton } from "@clerk/nextjs";
+import AuthModal from '@/components/AuthModal';
 
 export default function SplashPage() {
   const [currentFeature, setCurrentFeature] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
 
   useEffect(() => {
     setIsVisible(true);
@@ -82,16 +84,18 @@ export default function SplashPage() {
               </h1>
             </div>
             <div className="hidden sm:flex items-center space-x-4">
-              <SignInButton mode="modal">
-                <button className="px-6 py-2.5 text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 font-semibold transition-colors">
-                  Sign In
-                </button>
-              </SignInButton>
-              <SignUpButton mode="modal">
-                <button className="px-6 py-2.5 bg-gradient-to-r from-primary-500 to-accent-500 text-black font-semibold rounded-lg hover:from-primary-600 hover:to-accent-600 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-                  Get Started
-                </button>
-              </SignUpButton>
+              <button 
+                onClick={() => { setAuthMode('signin'); setAuthModalOpen(true); }}
+                className="px-6 py-2.5 text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 font-semibold transition-colors"
+              >
+                Sign In
+              </button>
+              <button 
+                onClick={() => { setAuthMode('signup'); setAuthModalOpen(true); }}
+                className="px-6 py-2.5 bg-gradient-to-r from-primary-500 to-accent-500 text-black font-semibold rounded-lg hover:from-primary-600 hover:to-accent-600 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
+                Get Started
+              </button>
             </div>
           </div>
         </header>
@@ -120,17 +124,19 @@ export default function SplashPage() {
               </p>
 
               <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
-                <SignUpButton mode="modal">
-                  <button className="w-full sm:w-auto px-10 py-5 bg-gradient-to-r from-primary-600 to-accent-600 text-black font-bold text-lg rounded-xl hover:from-primary-700 hover:to-accent-700 transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1 flex items-center justify-center space-x-3 border-2 border-primary-600 hover:border-primary-700">
-                    <span>Get Started</span>
-                    <ArrowRightIcon className="w-6 h-6" />
-                  </button>
-                </SignUpButton>
-                <SignInButton mode="modal">
-                  <button className="w-full sm:w-auto px-10 py-5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-bold text-lg rounded-xl border-2 border-gray-300 dark:border-gray-600 hover:border-primary-400 dark:hover:border-primary-500 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1">
-                    Sign In
-                  </button>
-                </SignInButton>
+                <button 
+                  onClick={() => { setAuthMode('signup'); setAuthModalOpen(true); }}
+                  className="w-full sm:w-auto px-10 py-5 bg-gradient-to-r from-primary-600 to-accent-600 text-black font-bold text-lg rounded-xl hover:from-primary-700 hover:to-accent-700 transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1 flex items-center justify-center space-x-3 border-2 border-primary-600 hover:border-primary-700"
+                >
+                  <span>Get Started</span>
+                  <ArrowRightIcon className="w-6 h-6" />
+                </button>
+                <button 
+                  onClick={() => { setAuthMode('signin'); setAuthModalOpen(true); }}
+                  className="w-full sm:w-auto px-10 py-5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-bold text-lg rounded-xl border-2 border-gray-300 dark:border-gray-600 hover:border-primary-400 dark:hover:border-primary-500 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                >
+                  Sign In
+                </button>
               </div>
             </div>
 
@@ -289,17 +295,19 @@ export default function SplashPage() {
                 Join thousands of users who have already discovered the joy of modern messaging with Moreno Chat.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
-                <SignUpButton mode="modal">
-                  <button className="w-full sm:w-auto px-10 py-5 bg-white text-primary-600 font-bold text-lg rounded-xl hover:bg-gray-50 transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1 flex items-center justify-center space-x-3 border-2 border-white">
-                    <span>Create Account</span>
-                    <ArrowRightIcon className="w-6 h-6" />
-                  </button>
-                </SignUpButton>
-                <SignInButton mode="modal">
-                  <button className="w-full sm:w-auto px-10 py-5 bg-transparent text-black font-bold text-lg rounded-xl border-2 border-white/50 hover:border-white hover:bg-white/20 transition-all shadow-lg">
-                    Already have an account?
-                  </button>
-                </SignInButton>
+                <button 
+                  onClick={() => { setAuthMode('signup'); setAuthModalOpen(true); }}
+                  className="w-full sm:w-auto px-10 py-5 bg-white text-primary-600 font-bold text-lg rounded-xl hover:bg-gray-50 transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1 flex items-center justify-center space-x-3 border-2 border-white"
+                >
+                  <span>Create Account</span>
+                  <ArrowRightIcon className="w-6 h-6" />
+                </button>
+                <button 
+                  onClick={() => { setAuthMode('signin'); setAuthModalOpen(true); }}
+                  className="w-full sm:w-auto px-10 py-5 bg-transparent text-black font-bold text-lg rounded-xl border-2 border-white/50 hover:border-white hover:bg-white/20 transition-all shadow-lg"
+                >
+                  Already have an account?
+                </button>
               </div>
             </div>
           </div>
@@ -322,6 +330,13 @@ export default function SplashPage() {
           </div>
         </footer>
       </div>
+
+      <AuthModal 
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        mode={authMode}
+        onModeSwitch={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')}
+      />
     </div>
   );
 }

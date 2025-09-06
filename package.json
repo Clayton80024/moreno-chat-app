@@ -9,9 +9,9 @@
     "export": "next build && next export"
   },
   "dependencies": {
-    "@clerk/nextjs": "^6.31.8",
     "@headlessui/react": "^2.2.7",
     "@heroicons/react": "^2.2.0",
+    "@supabase/supabase-js": "^2.57.0",
     "next": "15.5.2",
     "react": "19.1.0",
     "react-dom": "19.1.0"
