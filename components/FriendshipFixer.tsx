@@ -39,8 +39,7 @@ export function FriendshipFixer() {
           code: testError.code,
           message: testError.message,
           details: testError.details,
-          hint: testError.hint,
-          status: testError.status
+          hint: testError.hint
         });
         setResult('❌ Friends table not accessible. Check RLS policies.');
         return;
@@ -82,8 +81,7 @@ export function FriendshipFixer() {
           code: firstError.code,
           message: firstError.message,
           details: firstError.details,
-          hint: firstError.hint,
-          status: firstError.status
+          hint: firstError.hint
         });
         console.error('🔴 Full first error object:', JSON.stringify(firstError, null, 2));
         setResult('❌ Error creating first friendship: ' + (firstError.message || 'Unknown error'));
@@ -110,8 +108,7 @@ export function FriendshipFixer() {
           code: secondError.code,
           message: secondError.message,
           details: secondError.details,
-          hint: secondError.hint,
-          status: secondError.status
+          hint: secondError.hint
         });
         console.error('🔴 Full second error object:', JSON.stringify(secondError, null, 2));
         console.error('🔴 Second error type:', typeof secondError);
