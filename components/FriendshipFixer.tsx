@@ -123,7 +123,8 @@ export function FriendshipFixer() {
 
     } catch (error) {
       console.error('🔴 Error:', error);
-      setResult('❌ Error: ' + error.message);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setResult('❌ Error: ' + errorMessage);
     } finally {
       setIsLoading(false);
     }
