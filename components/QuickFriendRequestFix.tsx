@@ -56,7 +56,8 @@ export function QuickFriendRequestFix() {
 
     } catch (error) {
       console.error('🔴 Error:', error);
-      setResults({ error: error.message });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setResults({ error: errorMessage });
     } finally {
       setIsLoading(false);
     }
@@ -73,7 +74,8 @@ export function QuickFriendRequestFix() {
 
       if (error) {
         console.error('🔴 Error fixing status:', error);
-        alert('Error fixing status: ' + error.message);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        alert('Error fixing status: ' + errorMessage);
       } else {
         console.log('✅ Fixed request status');
         alert('Request status fixed! Please refresh the page.');
@@ -81,7 +83,8 @@ export function QuickFriendRequestFix() {
       }
     } catch (error) {
       console.error('🔴 Error:', error);
-      alert('Error: ' + error.message);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert('Error: ' + errorMessage);
     }
   };
 
