@@ -41,11 +41,13 @@ export function ChatTester() {
           setResult(`✅ Chat created, messages loaded (${messages.length}), and test message sent! Chat ID: ${chat.id}`);
         } catch (sendError) {
           console.error('🔴 Error sending test message:', sendError);
-          setResult(`✅ Chat created and messages loaded (${messages.length}), but message sending failed: ${sendError.message}`);
+          const errorMessage = sendError instanceof Error ? sendError.message : 'Unknown error';
+          setResult(`✅ Chat created and messages loaded (${messages.length}), but message sending failed: ${errorMessage}`);
         }
       } catch (messageError) {
         console.error('🔴 Error loading messages:', messageError);
-        setResult(`✅ Chat created but message loading failed: ${messageError.message}`);
+        const errorMessage = messageError instanceof Error ? messageError.message : 'Unknown error';
+        setResult(`✅ Chat created but message loading failed: ${errorMessage}`);
       }
       
       // Navigate to the chat
@@ -56,12 +58,13 @@ export function ChatTester() {
     } catch (error) {
       console.error('🔴 Error creating chat:', error);
       
-      if (error.message?.includes('row-level security') || 
+      if (error instanceof Error && (error.message?.includes('row-level security') || 
           error.message?.includes('policy') ||
-          error.message?.includes('permission')) {
+          error.message?.includes('permission'))) {
         setResult('❌ RLS Policy Error: Chat creation blocked by database policies. Please run the SQL fix first.');
       } else {
-        setResult('❌ Error creating chat: ' + error.message);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        setResult('❌ Error creating chat: ' + errorMessage);
       }
     } finally {
       setIsLoading(false);
