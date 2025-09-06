@@ -5,8 +5,6 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  assetPrefix: process.env.NODE_ENV === 'production' ? '/moreno-chat-app/' : '',
-  basePath: process.env.NODE_ENV === 'production' ? '/moreno-chat-app' : '',
 };
 
 export default nextConfig;
