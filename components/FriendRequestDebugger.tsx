@@ -163,7 +163,8 @@ export function FriendRequestDebugger() {
 
     } catch (error) {
       console.error('🔴 Debug error:', error);
-      setDebugInfo({ error: error.message });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setDebugInfo({ error: errorMessage });
     } finally {
       setIsLoading(false);
     }
