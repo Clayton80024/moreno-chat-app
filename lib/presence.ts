@@ -36,7 +36,6 @@ export class PresenceService {
         console.error('🔴 Error message:', error.message)
         console.error('🔴 Error details:', error.details)
         console.error('🔴 Error hint:', error.hint)
-        console.error('🔴 Status code:', error.status)
         return false
       }
 
@@ -78,7 +77,6 @@ export class PresenceService {
         console.error('🔴 Error message:', error.message)
         console.error('🔴 Error details:', error.details)
         console.error('🔴 Error hint:', error.hint)
-        console.error('🔴 Status code:', error.status)
         console.error('🔴 Full error object:', JSON.stringify(error, null, 2))
         
         // If there's an RLS issue, provide helpful error message
@@ -168,16 +166,23 @@ export class PresenceService {
     }
 
     const onlineFriends = (data || [])
-      .filter(friend => friend.presence?.status === 'online')
-      .map(friend => ({
-        id: friend.friend_profile.id,
-        full_name: friend.friend_profile.full_name,
-        username: friend.friend_profile.username,
-        avatar_url: friend.friend_profile.avatar_url,
-        is_online: true,
-        last_seen: friend.presence.last_seen,
-        status: friend.presence.status as 'online' | 'away' | 'offline'
-      }))
+      .filter(friend => {
+        const presence = Array.isArray(friend.presence) ? friend.presence[0] : friend.presence;
+        return presence?.status === 'online';
+      })
+      .map(friend => {
+        const profile = Array.isArray(friend.friend_profile) ? friend.friend_profile[0] : friend.friend_profile;
+        const presence = Array.isArray(friend.presence) ? friend.presence[0] : friend.presence;
+        return {
+          id: profile.id,
+          full_name: profile.full_name,
+          username: profile.username,
+          avatar_url: profile.avatar_url,
+          is_online: true,
+          last_seen: presence.last_seen,
+          status: presence.status as 'online' | 'away' | 'offline'
+        };
+      })
 
     return onlineFriends
   }

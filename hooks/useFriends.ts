@@ -215,7 +215,7 @@ export function useFriends(): UseFriendsReturn {
     
     try {
       await FriendsService.removeFriend(user.id, friendId);
-      await loadFriends(); // Refresh friends list
+      // Note: Friends will be refreshed automatically via real-time updates
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove friend');
     } finally {
@@ -231,7 +231,7 @@ export function useFriends(): UseFriendsReturn {
     
     try {
       await FriendsService.blockUser(user.id, userId);
-      await loadFriends(); // Refresh friends list
+      // Note: Friends will be refreshed automatically via real-time updates
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to block user');
     } finally {
@@ -247,7 +247,7 @@ export function useFriends(): UseFriendsReturn {
     
     try {
       await FriendsService.unblockUser(user.id, userId);
-      await loadFriends(); // Refresh friends list
+      // Note: Friends will be refreshed automatically via real-time updates
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to unblock user');
     } finally {

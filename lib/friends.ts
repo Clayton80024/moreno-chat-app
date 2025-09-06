@@ -98,7 +98,6 @@ export class FriendsService {
         console.error('🔴 Error message:', error1.message)
         console.error('🔴 Error details:', error1.details)
         console.error('🔴 Error hint:', error1.hint)
-        console.error('🔴 Status code:', error1.status)
         console.error('🔴 Full error object:', JSON.stringify(error1, null, 2))
         
         // Test 2: Try with user filter
@@ -113,7 +112,6 @@ export class FriendsService {
           console.error('🔴 Test 2 also failed:', error2)
           console.error('🔴 Error code:', error2.code)
           console.error('🔴 Error message:', error2.message)
-          console.error('🔴 Status code:', error2.status)
         } else {
           console.log('✅ Test 2 succeeded - issue might be with RLS policies')
         }
@@ -413,13 +411,13 @@ export class FriendsService {
       const [request1, request2] = await Promise.all([
         supabase
           .from('friend_requests')
-          .select('id, status')
+          .select('id, status, sender_id, receiver_id')
           .eq('sender_id', senderId)
           .eq('receiver_id', receiverId)
           .single(),
         supabase
           .from('friend_requests')
-          .select('id, status')
+          .select('id, status, sender_id, receiver_id')
           .eq('sender_id', receiverId)
           .eq('receiver_id', senderId)
           .single()
@@ -470,7 +468,6 @@ export class FriendsService {
         console.error('🔴 Error message:', error.message)
         console.error('🔴 Error details:', error.details)
         console.error('🔴 Error hint:', error.hint)
-        console.error('🔴 Status code:', error.status)
         throw new Error(error.message || 'Failed to send friend request')
       }
 
@@ -943,6 +940,7 @@ export class FriendsService {
         username,
         avatar_url,
         bio,
+        location,
         is_online,
         last_seen
       `)

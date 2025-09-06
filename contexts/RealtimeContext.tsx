@@ -360,13 +360,15 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       content: content.trim(),
       message_type: 'text' as const,
       reply_to_id: replyToId || null,
+      edited_at: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       sender_profile: {
         id: user.id,
         full_name: user.user_metadata?.full_name || '',
         username: user.user_metadata?.username || '',
-        avatar_url: user.user_metadata?.avatar_url || null
+        avatar_url: user.user_metadata?.avatar_url || null,
+        location: null
       }
     };
     

@@ -314,8 +314,7 @@ export class ChatsService {
           code: chatError.code,
           message: chatError.message,
           details: chatError.details,
-          hint: chatError.hint,
-          status: chatError.status
+          hint: chatError.hint
         });
         throw new Error(chatError.message);
       }
@@ -350,8 +349,7 @@ export class ChatsService {
           code: participantsError.code,
           message: participantsError.message,
           details: participantsError.details,
-          hint: participantsError.hint,
-          status: participantsError.status
+          hint: participantsError.hint
         });
         throw new Error(participantsError.message);
       }
@@ -459,8 +457,7 @@ export class ChatsService {
           code: error.code,
           message: error.message,
           details: error.details,
-          hint: error.hint,
-          status: error.status
+          hint: error.hint
         });
         throw new Error(error.message);
       }
@@ -568,8 +565,7 @@ export class ChatsService {
           code: messageError.code,
           message: messageError.message,
           details: messageError.details,
-          hint: messageError.hint,
-          status: messageError.status
+          hint: messageError.hint
         });
         throw new Error(messageError.message);
       }
