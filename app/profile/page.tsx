@@ -54,7 +54,9 @@ export default function ProfilePage() {
       setLoading(false);
       clearTimeout(timeoutId);
       // Fetch counts when profile is loaded
-      fetchCounts(user.id);
+      if (user) {
+        fetchCounts(user.id);
+      }
     } else if (user) {
       // User exists but no profile - this can happen for new users
       // Try to create a basic profile or show profile not found
@@ -76,7 +78,9 @@ export default function ProfilePage() {
         setLoading(false);
         clearTimeout(timeoutId);
         // Fetch counts when new profile is created
-        fetchCounts(user.id);
+        if (user) {
+          fetchCounts(user.id);
+        }
       }).catch((error) => {
         console.error('🔴 Failed to create basic profile:', error);
         // Show profile not found state instead of loading forever
