@@ -109,7 +109,7 @@ export default function ProfileEditModal({
       // Update profile
       const updatedProfile = await ProfileService.updateProfile(user.id, {
         ...formData,
-        avatar_url: avatarUrl
+        avatar_url: avatarUrl || undefined
       })
 
       console.log('🟢 Profile updated successfully')
