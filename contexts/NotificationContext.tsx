@@ -11,6 +11,7 @@ export interface Notification {
   message: string;
   timestamp: string;
   read: boolean;
+  userId: string; // Add user ID to ensure notifications are user-specific
   data?: any; // Additional data like user_id, chat_id, etc.
 }
 
@@ -31,59 +32,85 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const { friendRequests, chats, onlineFriends } = useRealtime();
   const { user } = useAuth();
 
-  // Calculate unread count
-  const unreadCount = notifications.filter(n => !n.read).length;
+  // Filter notifications by current user
+  const userNotifications = notifications.filter(n => n.userId === user?.id);
+  
+  // Calculate unread count for current user only
+  const unreadCount = userNotifications.filter(n => !n.read).length;
 
-  // Add notification
-  const addNotification = useCallback((notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
+  // Add notification with user validation
+  const addNotification = useCallback((notification: Omit<Notification, 'id' | 'timestamp' | 'read' | 'userId'>) => {
+    // Only add notification if user is logged in
+    if (!user?.id) {
+      console.warn('Cannot add notification: user not logged in');
+      return;
+    }
+
     const newNotification: Notification = {
       ...notification,
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       timestamp: new Date().toISOString(),
-      read: false
+      read: false,
+      userId: user.id // Ensure notification is tied to current user
     };
 
     setNotifications(prev => [newNotification, ...prev]);
 
-    // Show browser notification if permission is granted
-    if (Notification.permission === 'granted') {
+    // Show browser notification if permission is granted and user is active
+    if (Notification.permission === 'granted' && document.hasFocus()) {
       new Notification(notification.title, {
         body: notification.message,
         icon: '/favicon.ico',
         tag: newNotification.id
       });
     }
-  }, []);
+  }, [user?.id]);
 
-  // Mark notification as read
+  // Mark notification as read (only for current user)
   const markAsRead = useCallback((notificationId: string) => {
+    if (!user?.id) return;
+    
     setNotifications(prev => 
       prev.map(notification => 
-        notification.id === notificationId 
+        notification.id === notificationId && notification.userId === user.id
           ? { ...notification, read: true }
           : notification
       )
     );
-  }, []);
+  }, [user?.id]);
 
-  // Mark all notifications as read
+  // Mark all notifications as read (only for current user)
   const markAllAsRead = useCallback(() => {
+    if (!user?.id) return;
+    
     setNotifications(prev => 
-      prev.map(notification => ({ ...notification, read: true }))
+      prev.map(notification => 
+        notification.userId === user.id 
+          ? { ...notification, read: true }
+          : notification
+      )
     );
-  }, []);
+  }, [user?.id]);
 
-  // Remove notification
+  // Remove notification (only for current user)
   const removeNotification = useCallback((notificationId: string) => {
+    if (!user?.id) return;
+    
     setNotifications(prev => 
-      prev.filter(notification => notification.id !== notificationId)
+      prev.filter(notification => 
+        !(notification.id === notificationId && notification.userId === user.id)
+      )
     );
-  }, []);
+  }, [user?.id]);
 
-  // Clear all notifications
+  // Clear all notifications (only for current user)
   const clearAllNotifications = useCallback(() => {
-    setNotifications([]);
-  }, []);
+    if (!user?.id) return;
+    
+    setNotifications(prev => 
+      prev.filter(notification => notification.userId !== user.id)
+    );
+  }, [user?.id]);
 
   // Request notification permission on mount
   useEffect(() => {
@@ -92,40 +119,42 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   }, []);
 
-  // Listen for new friend requests
+  // Listen for new friend requests (only for current user)
   useEffect(() => {
-    if (friendRequests.received.length > 0) {
-      const latestRequest = friendRequests.received[0];
-      
-      // Check if we already have a notification for this request
-      const existingNotification = notifications.find(
-        n => n.type === 'friend_request' && n.data?.requestId === latestRequest.id
-      );
+    if (!user?.id || friendRequests.received.length === 0) return;
+    
+    const latestRequest = friendRequests.received[0];
+    
+    // Check if we already have a notification for this request
+    const existingNotification = userNotifications.find(
+      n => n.type === 'friend_request' && n.data?.requestId === latestRequest.id
+    );
 
-      if (!existingNotification) {
-        addNotification({
-          type: 'friend_request',
-          title: 'New Friend Request',
-          message: `${latestRequest.sender_profile?.full_name || latestRequest.sender_profile?.username || 'Someone'} wants to be your friend`,
-          data: {
-            requestId: latestRequest.id,
-            senderId: latestRequest.sender_id,
-            senderName: latestRequest.sender_profile?.full_name || latestRequest.sender_profile?.username
-          }
-        });
-      }
+    if (!existingNotification) {
+      addNotification({
+        type: 'friend_request',
+        title: 'New Friend Request',
+        message: `${latestRequest.sender_profile?.full_name || latestRequest.sender_profile?.username || 'Someone'} wants to be your friend`,
+        data: {
+          requestId: latestRequest.id,
+          senderId: latestRequest.sender_id,
+          senderName: latestRequest.sender_profile?.full_name || latestRequest.sender_profile?.username
+        }
+      });
     }
-  }, [friendRequests.received, addNotification, notifications]);
+  }, [friendRequests.received, addNotification, userNotifications, user?.id]);
 
-  // Listen for new messages (only for chats not currently open)
+  // Listen for new messages (only for current user's chats)
   useEffect(() => {
+    if (!user?.id) return;
+    
     chats.forEach(chat => {
       if (chat.unread_count && chat.unread_count > 0) {
         const latestMessage = chat.last_message;
         
-        if (latestMessage) {
+        if (latestMessage && latestMessage.sender_id !== user.id) {
           // Check if we already have a notification for this message
-          const existingNotification = notifications.find(
+          const existingNotification = userNotifications.find(
             n => n.type === 'message' && n.data?.messageId === latestMessage.id
           );
 
@@ -151,21 +180,31 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }
       }
     });
-  }, [chats, addNotification, notifications]);
+  }, [chats, addNotification, userNotifications, user?.id]);
 
-  // Auto-remove old notifications (older than 7 days)
+  // Clear notifications when user logs out
   useEffect(() => {
+    if (!user?.id) {
+      setNotifications([]);
+    }
+  }, [user?.id]);
+
+  // Auto-remove old notifications (older than 7 days) - only for current user
+  useEffect(() => {
+    if (!user?.id) return;
+    
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     
     setNotifications(prev => 
       prev.filter(notification => 
+        notification.userId === user.id && 
         new Date(notification.timestamp) > sevenDaysAgo
       )
     );
-  }, []);
+  }, [user?.id]);
 
   const value: NotificationContextType = {
-    notifications,
+    notifications: userNotifications, // Only return notifications for current user
     unreadCount,
     addNotification,
     markAsRead,

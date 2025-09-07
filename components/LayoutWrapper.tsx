@@ -49,7 +49,7 @@ export default function LayoutWrapper({ children }: LayoutWrapperProps) {
                     <Bars3Icon className="h-6 w-6 text-gray-600" aria-hidden="true" />
                   </button>
                   <div className="ml-3 flex items-center">
-                    <h1 className="text-lg font-bold bg-gradient-to-r from-primary-500 to-accent-500 bg-clip-text text-transparent">
+                    <h1 className="text-lg font-bold bg-gradient-to-r from-primary-500 to-accent-500 bg-clip-text text-blackt">
                       Moreno
                     </h1>
                     <span className="mx-2 text-gray-400">•</span>

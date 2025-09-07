@@ -380,7 +380,7 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Action Buttons - Mobile */}
+            {/* Action Buttons - Mobile 
             <div className="sm:hidden border-t-2 border-gray-100 p-5 pb-8 bg-gray-50">
               <div className="grid grid-cols-2 gap-3">
                 <button className="flex items-center justify-center px-4 py-3.5 bg-primary-600 text-white rounded-lg font-bold text-base shadow-lg hover:bg-primary-700 active:bg-primary-800 transition-colors">
@@ -391,11 +391,13 @@ export default function ProfilePage() {
                   <ShareIcon className="w-5 h-5 mr-2 text-gray-700" />
                   Share
                 </button>
+                
               </div>
             </div>
+            */}
           </div>
 
-          {/* Quick Actions - Desktop */}
+          {/* Quick Actions - Desktop 
           <div className="hidden sm:flex justify-center space-x-4 mt-8 mb-8">
             <button className="flex items-center px-8 py-4 bg-primary-600 text-white rounded-xl hover:bg-primary-700 active:bg-primary-800 transition-all shadow-xl hover:shadow-2xl font-bold text-lg">
               <PaperAirplaneIcon className="w-6 h-6 mr-3 text-white" />
@@ -406,9 +408,10 @@ export default function ProfilePage() {
               Share Profile
             </button>
           </div>
+          */}
         </div>
       </div>
-
+       
       {/* Profile Edit Modal */}
       {isEditing && (
         <ProfileEditModal

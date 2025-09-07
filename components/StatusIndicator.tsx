@@ -59,7 +59,16 @@ export function OnlineFriendsList({ maxDisplay = 5 }: OnlineFriendsListProps) {
       return otherParticipant;
     })
     .filter(Boolean)
+    // Deduplicate by user_id to prevent duplicate keys
+    .filter((friend, index, self) => 
+      index === self.findIndex(f => f?.user_id === friend?.user_id)
+    )
     .slice(0, maxDisplay);
+
+  // Debug logging to help identify duplicate issues
+  console.log('🔵 OnlineFriendsList - chats:', chats.length);
+  console.log('🔵 OnlineFriendsList - onlineFriends:', onlineFriends.length);
+  console.log('🔵 OnlineFriendsList - user_ids:', onlineFriends.map(f => f?.user_id));
 
   if (onlineFriends.length === 0) {
     return (
@@ -75,8 +84,8 @@ export function OnlineFriendsList({ maxDisplay = 5 }: OnlineFriendsListProps) {
         Online Friends
       </h4>
       <div className="space-y-1">
-        {onlineFriends.map((friend) => (
-          <div key={friend?.user_id} className="flex items-center space-x-2">
+        {onlineFriends.map((friend, index) => (
+          <div key={`online-friend-${friend?.user_id}-${index}`} className="flex items-center space-x-2">
             <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
               {friend?.user_profile?.avatar_url ? (
                 <img

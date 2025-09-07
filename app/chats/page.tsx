@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   PaperAirplaneIcon,
   PhoneIcon,
@@ -15,9 +15,13 @@ import {
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { useChatMessages } from "@/hooks/useChatMessages";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFriends } from "@/hooks/useFriends";
 import { StatusIndicator } from "@/components/StatusIndicator";
 import { ChatsService } from "@/lib/chats";
 import { countries, Country } from "@/lib/countries";
+import ChatItem from "@/components/ChatItem";
+import MessageBubble from "@/components/MessageBubble";
+
 
 export default function ChatsPage() {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
@@ -28,8 +32,17 @@ export default function ChatsPage() {
   const [showEmojiSuggestions, setShowEmojiSuggestions] = useState(false);
   const [emojiCursorPosition, setEmojiCursorPosition] = useState(0);
   
+  // Friend suggestion state
+  const [friendSuggestions, setFriendSuggestions] = useState<any[]>([]);
+  const [showFriendSuggestions, setShowFriendSuggestions] = useState(false);
+  const [friendCursorPosition, setFriendCursorPosition] = useState(0);
+  const [friendSearchQuery, setFriendSearchQuery] = useState("");
+  const [selectedFriendIndex, setSelectedFriendIndex] = useState(0);
+  
+  
   const { chats, setCurrentChat, sendMessage, markMessagesAsRead, onlineFriends } = useRealtime();
   const { user } = useAuth();
+  const { friends } = useFriends();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
@@ -61,7 +74,7 @@ export default function ChatsPage() {
 
   const selectedChat = chats.find(chat => chat.id === selectedChatId);
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = useCallback(async () => {
     if (messageInput.trim() && selectedChatId && !isSending) {
       try {
         await sendChatMessage(messageInput.trim());
@@ -70,9 +83,9 @@ export default function ChatsPage() {
         console.error('Error sending message:', error);
       }
     }
-  };
+  }, [messageInput, selectedChatId, isSending, sendChatMessage]);
 
-  const handleChatSelect = async (chatId: string) => {
+  const handleChatSelect = useCallback(async (chatId: string) => {
     setSelectedChatId(chatId);
     
     // Set current chat in realtime context
@@ -87,21 +100,71 @@ export default function ChatsPage() {
         scrollToBottom();
       }, 100);
     }
-  };
+  }, [chats, setCurrentChat, markMessagesAsRead]);
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  // Handle friend selection
+  const handleFriendSelect = useCallback((friend: any) => {
+    const friendName = friend.friend_profile?.username || friend.friend_profile?.full_name || 'Unknown';
+    
+    // Find the start of @friends pattern (with or without search query)
+    const friendsPatternStart = messageInput.lastIndexOf('@friends');
+    const beforeTrigger = messageInput.substring(0, friendsPatternStart);
+    const afterTrigger = messageInput.substring(messageInput.lastIndexOf('@') + 8); // "@friends" = 8 characters
+    
+    // If there was a search query, we need to remove it from the afterTrigger
+    let cleanAfterTrigger = afterTrigger;
+    if (friendSearchQuery) {
+      // Remove the search query part (everything after the first slash)
+      const slashIndex = afterTrigger.indexOf('/');
+      if (slashIndex !== -1) {
+        cleanAfterTrigger = afterTrigger.substring(slashIndex + 1 + friendSearchQuery.length);
+      }
+    }
+    
+    const newMessage = beforeTrigger + `@${friendName} ` + cleanAfterTrigger;
+    setMessageInput(newMessage);
+    setShowFriendSuggestions(false);
+    setFriendSearchQuery("");
+  }, [messageInput, friendCursorPosition, friendSearchQuery]);
+
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
+      
+      // If friend suggestions are open, select the highlighted friend
+      if (showFriendSuggestions && friendSuggestions.length > 0) {
+        const selectedFriend = friendSuggestions[selectedFriendIndex];
+        if (selectedFriend) {
+          handleFriendSelect(selectedFriend);
+          return;
+        }
+      }
+      
+      // Otherwise send the message
       handleSendMessage();
+    } else if (e.key === 'ArrowDown' && showFriendSuggestions && friendSuggestions.length > 0) {
+      e.preventDefault();
+      setSelectedFriendIndex(prev => 
+        prev < friendSuggestions.length - 1 ? prev + 1 : 0
+      );
+    } else if (e.key === 'ArrowUp' && showFriendSuggestions && friendSuggestions.length > 0) {
+      e.preventDefault();
+      setSelectedFriendIndex(prev => 
+        prev > 0 ? prev - 1 : friendSuggestions.length - 1
+      );
+    } else if (e.key === 'Escape' && showFriendSuggestions) {
+      e.preventDefault();
+      setShowFriendSuggestions(false);
+      setFriendSearchQuery("");
     }
-  };
+  }, [handleSendMessage, showFriendSuggestions, friendSuggestions, selectedFriendIndex, handleFriendSelect]);
 
-  // Handle emoji suggestions
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle emoji suggestions and friend suggestions
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setMessageInput(value);
     
-    // Check for hashtag patterns
+    // Check for hashtag patterns (emojis)
     const hashtagMatch = value.match(/#(\w+)$/);
     if (hashtagMatch) {
       const hashtag = hashtagMatch[1].toLowerCase();
@@ -109,22 +172,73 @@ export default function ChatsPage() {
         setEmojiSuggestions(emojiDatabase[hashtag]);
         setShowEmojiSuggestions(true);
         setEmojiCursorPosition(value.lastIndexOf('#'));
+        // Hide friend suggestions when showing emoji suggestions
+        setShowFriendSuggestions(false);
       } else {
         setShowEmojiSuggestions(false);
       }
     } else {
       setShowEmojiSuggestions(false);
     }
-  };
+    
+    // Check for friend sharing patterns
+    const friendMatch = value.match(/@friends(\/(.*))?$/);
+    
+    if (friendMatch && friends && friends.length > 0) {
+      const searchQuery = friendMatch[2] || ""; // Get the part after @friends/
+      setFriendSearchQuery(searchQuery);
+      
+      // Filter friends based on search query
+      let filteredFriends = friends;
+      if (searchQuery) {
+        filteredFriends = friends.filter(friend => {
+          const fullName = friend.friend_profile?.full_name?.toLowerCase() || "";
+          const username = friend.friend_profile?.username?.toLowerCase() || "";
+          const query = searchQuery.toLowerCase();
+          
+          // Support multiple search terms (space-separated)
+          const searchTerms = query.split(' ').filter(term => term.length > 0);
+          
+          return searchTerms.every(term => 
+            fullName.includes(term) || username.includes(term)
+          );
+        });
+        
+        // Sort results by relevance (exact matches first, then partial matches)
+        filteredFriends.sort((a, b) => {
+          const aName = (a.friend_profile?.full_name || a.friend_profile?.username || "").toLowerCase();
+          const bName = (b.friend_profile?.full_name || b.friend_profile?.username || "").toLowerCase();
+          
+          const aStartsWith = aName.startsWith(searchQuery);
+          const bStartsWith = bName.startsWith(searchQuery);
+          
+          if (aStartsWith && !bStartsWith) return -1;
+          if (!aStartsWith && bStartsWith) return 1;
+          
+          return aName.localeCompare(bName);
+        });
+      }
+      
+      setFriendSuggestions(filteredFriends);
+      setShowFriendSuggestions(true);
+      setFriendCursorPosition(value.lastIndexOf('@'));
+      setSelectedFriendIndex(0); // Reset selection when list changes
+      // Hide emoji suggestions when showing friend suggestions
+      setShowEmojiSuggestions(false);
+    } else {
+      setShowFriendSuggestions(false);
+      setFriendSearchQuery("");
+    }
+  }, [emojiDatabase, friends]);
 
   // Handle emoji selection
-  const handleEmojiSelect = (emoji: string) => {
+  const handleEmojiSelect = useCallback((emoji: string) => {
     const beforeHashtag = messageInput.substring(0, emojiCursorPosition);
     const afterHashtag = messageInput.substring(messageInput.lastIndexOf('#') + 1);
     const newMessage = beforeHashtag + emoji + ' ' + afterHashtag;
     setMessageInput(newMessage);
     setShowEmojiSuggestions(false);
-  };
+  }, [messageInput, emojiCursorPosition]);
 
   const getChatDisplayName = (chat: any) => {
     if (chat.type === 'direct') {
@@ -166,14 +280,18 @@ export default function ChatsPage() {
     return country?.flag || '';
   };
 
-  const filteredChats = chats.filter(chat => {
-    if (!searchQuery) return true;
-    const displayName = getChatDisplayName(chat).toLowerCase();
-    const lastMessage = chat.last_message?.content?.toLowerCase() || '';
-    return displayName.includes(searchQuery.toLowerCase()) || lastMessage.includes(searchQuery.toLowerCase());
-  });
+  const filteredChats = useMemo(() => {
+    return chats.filter(chat => {
+      if (!searchQuery) return true;
+      const displayName = getChatDisplayName(chat).toLowerCase();
+      const lastMessage = chat.last_message?.content?.toLowerCase() || '';
+      return displayName.includes(searchQuery.toLowerCase()) || lastMessage.includes(searchQuery.toLowerCase());
+    });
+  }, [chats, searchQuery]);
 
-  const totalUnreadCount = chats.reduce((sum, chat) => sum + (chat.unread_count || 0), 0);
+  const totalUnreadCount = useMemo(() => {
+    return chats.reduce((sum, chat) => sum + (chat.unread_count || 0), 0);
+  }, [chats]);
 
   // Scroll to bottom function
   const scrollToBottom = () => {
@@ -202,6 +320,16 @@ export default function ChatsPage() {
 
   return (
     <div className="flex h-full relative bg-gray-50 dark:bg-gray-900">
+      {/* Loading State */}
+      {messagesLoading && (
+        <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 flex items-center justify-center z-50">
+          <div className="flex flex-col items-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Loading messages...</p>
+          </div>
+        </div>
+      )}
+      
       {/* Chat List - Desktop always visible, Mobile conditional */}
       <div className={`
         ${selectedChatId ? 'hidden lg:flex' : 'flex'}
@@ -244,71 +372,22 @@ export default function ChatsPage() {
           {filteredChats.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full p-8">
               <UserGroupIcon className="w-16 h-16 text-gray-400 dark:text-gray-600 mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No conversations yet</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-black mb-2">No conversations yet</h3>
               <p className="text-gray-600 dark:text-gray-400 text-center">
                 Start a conversation with your friends to see messages here
               </p>
             </div>
           ) : (
-            filteredChats.map((chat) => {
-              const displayName = getChatDisplayName(chat);
-              const avatar = getChatAvatar(chat);
-              const avatarInitial = getChatAvatarInitial(chat);
-              const isOnline = isChatOnline(chat);
-              const lastMessageTime = chat.last_message_at ? new Date(chat.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-              
-              return (
-                <div
-                  key={chat.id}
-                  onClick={() => handleChatSelect(chat.id)}
-                  className={`
-                    flex items-center px-4 py-3.5 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors border-b border-gray-100 dark:border-gray-800
-                    ${selectedChatId === chat.id ? "bg-primary-50 dark:bg-primary-900/20 lg:border-l-4 lg:border-primary-600" : ""}
-                  `}
-                >
-                  <div className="relative flex-shrink-0">
-                    {avatar ? (
-                      <img 
-                        src={avatar} 
-                        alt={displayName}
-                        className="w-12 h-12 rounded-full object-cover shadow-md"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-accent-500 rounded-full flex items-center justify-center text-white font-bold text-base shadow-md">
-                        {avatarInitial}
-                      </div>
-                    )}
-                    {isOnline && (
-                      <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full border-2 border-white dark:border-gray-800 shadow-sm"></div>
-                    )}
-                  </div>
-                  
-                  <div className="ml-3 flex-1 min-w-0">
-                    <div className="flex justify-between items-baseline">
-                      <div className="flex items-center space-x-2">
-                        <p className="text-base font-bold text-gray-900 dark:text-white truncate">{displayName}</p>
-                        {chat.type === 'direct' && (() => {
-                          const otherParticipant = chat.participants?.find((p: any) => p.user_id !== user?.id);
-                          const countryFlag = getCountryFlag(otherParticipant?.user_profile?.location || undefined);
-                          return countryFlag ? <span className="text-lg" title={otherParticipant?.user_profile?.location || undefined}>{countryFlag}</span> : null;
-                        })()}
-                      </div>
-                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400 ml-2 flex-shrink-0">{lastMessageTime}</span>
-                    </div>
-                    <div className="flex justify-between items-center mt-0.5">
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate pr-2">
-                        {chat.last_message?.content || 'No messages yet'}
-                      </p>
-                      {chat.unread_count && chat.unread_count > 0 && (
-                        <span className="ml-auto bg-primary-600 text-white text-xs font-bold rounded-full px-2 py-0.5 flex-shrink-0 shadow-sm min-w-[20px] text-center">
-                          {chat.unread_count}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
+            filteredChats.map((chat) => (
+              <ChatItem
+                key={chat.id}
+                chat={chat}
+                user={user}
+                isSelected={selectedChatId === chat.id}
+                onSelect={handleChatSelect}
+                onlineFriends={onlineFriends}
+              />
+            ))
           )}
         </div>
       </div>
@@ -316,7 +395,7 @@ export default function ChatsPage() {
       {/* Chat Area - Mobile full screen when selected */}
       {selectedChatId ? (
         <div className={`
-          flex-1 flex flex-col bg-white dark:bg-gray-800
+          flex-1 flex flex-col bg-white dark:bg-gray-800 relative
           ${selectedChatId ? 'flex' : 'hidden lg:flex'}
           absolute lg:relative w-full h-full z-30
         `}>
@@ -387,7 +466,7 @@ export default function ChatsPage() {
           <div 
             ref={messagesContainerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 pb-20 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 relative"
+            className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 pb-24 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 relative"
           >
             {messagesLoading ? (
               <div className="flex justify-center py-8">
@@ -400,7 +479,7 @@ export default function ChatsPage() {
             ) : messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full">
                 <ChatBubbleLeftRightIcon className="w-16 h-16 text-gray-400 dark:text-gray-600 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No messages yet</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-black mb-2">No messages yet</h3>
                 <p className="text-gray-600 dark:text-gray-400 text-center">
                   Start the conversation by sending a message
                 </p>
@@ -409,47 +488,20 @@ export default function ChatsPage() {
               <div className="space-y-4 max-w-4xl mx-auto">
                 {messages.map((message) => {
                   const isOwnMessage = message.sender_id === user?.id;
-                  const senderProfile = message.sender_profile;
-                  const messageTime = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  
+                  // Get the other user's profile for translation
+                  const otherUserProfile = selectedChat?.participants?.find(
+                    (p: any) => p.user_id !== user?.id
+                  )?.user_profile;
                   
                   return (
-                    <div
+                    <MessageBubble
                       key={message.id}
-                      className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}
-                    >
-                      <div className={`
-                        max-w-[75%] sm:max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-md
-                        ${isOwnMessage 
-                          ? "bg-primary-600 text-white ml-12" 
-                          : "bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white mr-12"
-                        }
-                      `}>
-                        {!isOwnMessage && senderProfile && (
-                          <div className={`flex items-center space-x-2 mb-1 ${
-                            isOwnMessage ? "text-primary-100" : "text-gray-800 dark:text-gray-200"
-                          }`}>
-                            <p className="text-xs font-bold">
-                              {senderProfile.full_name || senderProfile.username || 'Unknown User'}
-                            </p>
-                            {(() => {
-                              const countryFlag = getCountryFlag(senderProfile.location || undefined);
-                              return countryFlag ? <span className="text-sm" title={senderProfile.location || undefined}>{countryFlag}</span> : null;
-                            })()}
-                          </div>
-                        )}
-                        <p className={`text-sm sm:text-base leading-relaxed break-words font-medium ${
-                          isOwnMessage ? "text-black" : "text-gray-900 dark:text-gray-100"
-                        }`}>
-                          {message.content}
-                        </p>
-                        <p className={`
-                          text-xs font-semibold mt-1.5
-                          ${isOwnMessage ? "text-primary-200" : "text-gray-600 dark:text-gray-400"}
-                        `}>
-                          {messageTime}
-                        </p>
-                      </div>
-                    </div>
+                      message={message}
+                      isOwnMessage={isOwnMessage}
+                      user={user}
+                      otherUserProfile={otherUserProfile}
+                    />
                   );
                 })}
                 <div ref={messagesEndRef} />
@@ -469,18 +521,47 @@ export default function ChatsPage() {
           </div>
 
           {/* Message Input - Fixed to Bottom */}
-          <div className="fixed bottom-0 left-0 right-0 px-3 sm:px-4 py-3 sm:py-4 border-t-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-30">
-            <div className="flex items-center space-x-3 max-w-4xl mx-auto">
-              <div className="flex-1 relative">
-                <input
-                  type="text"
-                  value={messageInput}
-                  onChange={handleInputChange}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Type a message..."
-                  disabled={isSending}
-                  className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white dark:focus:bg-gray-600 focus:border-primary-500 transition-all text-sm sm:text-base font-medium text-gray-900 dark:text-white disabled:opacity-50"
-                />
+          <div className="absolute bottom-0 left-0 right-0 px-3 sm:px-4 py-3 sm:py-4 border-t-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-30">
+            <div className="flex items-center justify-center max-w-4xl mx-auto">
+              <div className="w-full max-w-2xl relative">
+                <div className="flex items-center space-x-3 bg-gray-100 dark:bg-gray-700 rounded-full px-4 py-2 border border-gray-300 dark:border-gray-600 focus-within:ring-2 focus-within:ring-primary-500 focus-within:bg-white dark:focus-within:bg-gray-600 focus-within:border-primary-500 transition-all">
+                  {/* Avatar/Profile Icon */}
+                  <div className="w-8 h-8 border-2 border-gray-300 dark:border-gray-600 rounded-full bg-primary-600 flex items-center justify-center flex-shrink-0">
+                    <span className="text-black font-semibold text-sm">
+                      {user?.email?.[0]?.toUpperCase() || 'U'}
+                    </span>
+                  </div>
+                  
+                  {/* Message Input */}
+                  <input
+                    type="text"
+                    value={messageInput}
+                    onChange={handleInputChange}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Type a message..."
+                    disabled={isSending}
+                    className="flex-1 bg-transparent border-none outline-none text-sm sm:text-base font-medium text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 disabled:opacity-50"
+                  />
+                  
+                  {/* Send Button */}
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={isSending || !messageInput.trim()}
+                    className={`w-8 h-8 bg-blue-700 text-white rounded-full flex items-center justify-center transition-all duration-200 hover:scale-105 flex-shrink-0 ${
+                      messageInput.trim() 
+                        ? 'bg-primary-400 hover:bg-primary-700 text-black cursor-pointer' 
+                        : 'bg-gray-700 text-white dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    } ${isSending ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {isSending ? (
+                      <div className={`w-4 h-4 border-2 border-t-transparent rounded-full animate-spin ${
+                        messageInput.trim() ? 'border-white' : 'border-gray-500 dark:border-gray-400'
+                      }`}></div>
+                    ) : (
+                      <PaperAirplaneIcon className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
                 
                 {/* Emoji Suggestions Dropdown */}
                 {showEmojiSuggestions && emojiSuggestions.length > 0 && (
@@ -499,19 +580,76 @@ export default function ChatsPage() {
                     </div>
                   </div>
                 )}
-              </div>
-              
-              <button
-                onClick={handleSendMessage}
-                disabled={!messageInput.trim() || isSending}
-                className="p-3 bg-primary-600 text-white rounded-full hover:bg-primary-700 active:bg-primary-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl border-2 border-primary-700 flex-shrink-0 opacity-100"
-              >
-                {isSending ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <PaperAirplaneIcon className="w-5 h-5 text-white font-bold opacity-100" />
+                
+                {/* Friend Suggestions Dropdown */}
+                {showFriendSuggestions && friendSuggestions.length > 0 && (
+                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 p-3 max-h-60 overflow-y-auto">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                          {friendSearchQuery ? `Friends matching "${friendSearchQuery}"` : 'Share a friend:'}
+                        </div>
+                        <div className="text-xs text-gray-400 dark:text-gray-500">
+                          {friendSuggestions.length} {friendSuggestions.length === 1 ? 'friend' : 'friends'}
+                        </div>
+                      </div>
+                      
+                      {friendSuggestions.length === 0 && friendSearchQuery ? (
+                        <div className="text-center py-4">
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            No friends found matching "{friendSearchQuery}"
+                          </div>
+                          <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                            Try a different name or username
+                          </div>
+                        </div>
+                      ) : (
+                        friendSuggestions.map((friend, index) => (
+                          <button
+                            key={friend.id}
+                            onClick={() => handleFriendSelect(friend)}
+                            className={`flex items-center space-x-3 w-full p-2 rounded-lg transition-colors ${
+                              index === selectedFriendIndex 
+                                ? 'bg-primary-100 dark:bg-primary-900/20 border border-primary-300 dark:border-primary-700' 
+                                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                              {friend.friend_profile?.avatar_url ? (
+                                <img 
+                                  src={friend.friend_profile.avatar_url} 
+                                  alt={friend.friend_profile.full_name || 'Friend'}
+                                  className="w-8 h-8 rounded-full object-cover"
+                                />
+                              ) : (
+                                <span>
+                                  {(friend.friend_profile?.full_name || friend.friend_profile?.username || 'F')[0].toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex-1 text-left min-w-0">
+                              <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                {friend.friend_profile?.full_name || friend.friend_profile?.username || 'Unknown Friend'}
+                              </div>
+                              {friend.friend_profile?.username && friend.friend_profile?.full_name && (
+                                <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                  @{friend.friend_profile.username}
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        ))
+                      )}
+                      
+                      {!friendSearchQuery && (
+                        <div className="text-xs text-gray-400 dark:text-gray-500 mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                          💡 Tip: Type @friends/name to filter friends
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
-              </button>
+              </div>
             </div>
           </div>
         </div>
@@ -527,6 +665,7 @@ export default function ChatsPage() {
           </div>
         </div>
       )}
+      
     </div>
   );
 }

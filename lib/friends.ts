@@ -374,13 +374,13 @@ export class FriendsService {
           .select('id, status, user_id, friend_id')
           .eq('user_id', senderId)
           .eq('friend_id', receiverId)
-          .single(),
+          .maybeSingle(), // Use maybeSingle() instead of single()
         supabase
           .from('friends')
           .select('id, status, user_id, friend_id')
           .eq('user_id', receiverId)
           .eq('friend_id', senderId)
-          .single()
+          .maybeSingle() // Use maybeSingle() instead of single()
       ])
 
       // Check if either friendship exists
@@ -414,13 +414,13 @@ export class FriendsService {
           .select('id, status, sender_id, receiver_id')
           .eq('sender_id', senderId)
           .eq('receiver_id', receiverId)
-          .single(),
+          .maybeSingle(), // Use maybeSingle() instead of single()
         supabase
           .from('friend_requests')
           .select('id, status, sender_id, receiver_id')
           .eq('sender_id', receiverId)
           .eq('receiver_id', senderId)
-          .single()
+          .maybeSingle() // Use maybeSingle() instead of single()
       ])
 
       // Check if either request exists
@@ -490,7 +490,7 @@ export class FriendsService {
         throw new Error('Friends table is not accessible. Please check RLS policies.')
       }
 
-      // Get the friend request
+      // Get the friend request with additional validation
       const { data: request, error: fetchError } = await supabase
         .from('friend_requests')
         .select('*')
@@ -503,16 +503,48 @@ export class FriendsService {
         console.error('🔴 Error fetching friend request:', fetchError)
         console.error('🔴 Error code:', fetchError.code)
         console.error('🔴 Error message:', fetchError.message)
-        throw new Error('Friend request not found')
+        
+        // Provide more specific error messages
+        if (fetchError.code === 'PGRST116') {
+          throw new Error('Friend request not found or already processed')
+        } else if (fetchError.message?.includes('permission')) {
+          throw new Error('You do not have permission to accept this request')
+        } else {
+          throw new Error('Friend request not found')
+        }
       }
 
       console.log('🔵 Found friend request:', request)
 
-      // Update the request status
+      // Additional validation: Check if users are already friends
+      const areAlreadyFriends = await this.areFriends(request.sender_id, request.receiver_id)
+      if (areAlreadyFriends) {
+        console.log('⚠️ Users are already friends, updating request status')
+        // Update the request status to accepted even if they're already friends
+        await supabase
+          .from('friend_requests')
+          .update({ status: 'accepted' })
+          .eq('id', requestId)
+        
+        // Return existing friendship
+        const { data: existingFriendship } = await supabase
+          .from('friends')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('friend_id', request.sender_id)
+          .eq('status', 'accepted')
+          .single()
+        
+        return existingFriendship
+      }
+
+      // Use a transaction-like approach to ensure consistency
+      // First, update the request status
       const { error: updateRequestError } = await supabase
         .from('friend_requests')
         .update({ status: 'accepted' })
         .eq('id', requestId)
+        .eq('status', 'pending') // Only update if still pending (prevents duplicates)
 
       if (updateRequestError) {
         console.error('🔴 Error updating friend request:', updateRequestError)
@@ -548,6 +580,13 @@ export class FriendsService {
         console.error('🔴 Error details:', createError.details)
         console.error('🔴 Error hint:', createError.hint)
         console.error('🔴 Full error object:', JSON.stringify(createError, null, 2))
+        
+        // If friendship creation fails, revert the request status
+        await supabase
+          .from('friend_requests')
+          .update({ status: 'pending' })
+          .eq('id', requestId)
+        
         throw new Error(createError.message || 'Failed to create friendship')
       }
 
@@ -564,11 +603,37 @@ export class FriendsService {
     try {
       console.log('🔵 Declining friend request:', requestId, 'for user:', userId)
       
+      // Get the friend request first to validate
+      const { data: request, error: fetchError } = await supabase
+        .from('friend_requests')
+        .select('*')
+        .eq('id', requestId)
+        .eq('receiver_id', userId)
+        .eq('status', 'pending')
+        .single()
+
+      if (fetchError) {
+        console.error('🔴 Error fetching friend request:', fetchError)
+        console.error('🔴 Error code:', fetchError.code)
+        console.error('🔴 Error message:', fetchError.message)
+        
+        // Provide more specific error messages
+        if (fetchError.code === 'PGRST116') {
+          throw new Error('Friend request not found or already processed')
+        } else if (fetchError.message?.includes('permission')) {
+          throw new Error('You do not have permission to decline this request')
+        } else {
+          throw new Error('Friend request not found')
+        }
+      }
+
+      console.log('🔵 Found friend request to decline:', request)
+      
       const { error } = await supabase
         .from('friend_requests')
         .update({ status: 'declined' })
         .eq('id', requestId)
-        .eq('receiver_id', userId)
+        .eq('status', 'pending') // Only update if still pending (prevents duplicates)
 
       if (error) {
         console.error('🔴 Error declining friend request:', error)
@@ -824,13 +889,13 @@ export class FriendsService {
           .select('*')
           .eq('sender_id', userId1)
           .eq('receiver_id', userId2)
-          .single(),
+          .maybeSingle(), // Use maybeSingle() instead of single()
         supabase
           .from('friend_requests')
           .select('*')
           .eq('sender_id', userId2)
           .eq('receiver_id', userId1)
-          .single()
+          .maybeSingle() // Use maybeSingle() instead of single()
       ])
 
       const existingRequest = request1.data || request2.data
@@ -875,14 +940,14 @@ export class FriendsService {
           .eq('user_id', userId1)
           .eq('friend_id', userId2)
           .eq('status', 'accepted')
-          .single(),
+          .maybeSingle(), // Use maybeSingle() instead of single()
         supabase
           .from('friends')
           .select('id')
           .eq('user_id', userId2)
           .eq('friend_id', userId1)
           .eq('status', 'accepted')
-          .single()
+          .maybeSingle() // Use maybeSingle() instead of single()
       ])
 
       // Check if either friendship exists

@@ -65,7 +65,7 @@ export default function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
             <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1">
               <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
                 <div className="flex h-16 shrink-0 items-center justify-between">
-                  <h1 className="text-xl font-bold bg-gradient-to-r from-primary-500 to-accent-500 bg-clip-text text-transparent">
+                  <h1 className="text-xl font-bold bg-gradient-to-r from-primary-500 to-accent-500 bg-clip-text text-black">
                     Moreno Chat
                   </h1>
                   <button
@@ -116,16 +116,16 @@ export default function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
                   </ul>
                 </nav>
 
-                {/* New Chat Button */}
+                {/* New Chat Button 
                 <button 
                   type="button"
                   aria-label="Start new chat"
                   className="w-full text-black flex items-center justify-center px-4 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 transition-all duration-200 shadow-md hover:shadow-lg"
                 >
-                  <PlusCircleIcon className="w-5 h-5 mr-2" />
+                  <PlusCircleIcon className="w-5 h-5 mr-2 text-black" />
                   <span className="font-medium text-black">New Chat</span>
                 </button>
-
+                */}
                 {/* User Profile Section */}
                 <div className="border-t border-gray-100 pt-4">
                   <div className="flex items-center px-3 py-2">

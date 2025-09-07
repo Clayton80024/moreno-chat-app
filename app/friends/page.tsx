@@ -80,7 +80,7 @@ function AddFriendModal({ isOpen, onClose, onSendRequest, isProcessing }: AddFri
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <Dialog.Panel className="mx-auto max-w-md w-full bg-white dark:bg-gray-800 rounded-xl shadow-xl relative">
           <div className="p-6">
-            <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-black mb-4">
               Add Friend
             </Dialog.Title>
             
@@ -269,7 +269,7 @@ function AddFriendModal({ isOpen, onClose, onSendRequest, isProcessing }: AddFri
                           setSelectedUser(previewUser);
                           setShowPreview(false);
                         }}
-                        className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+                        className="flex-1 px-4 py-2 bg-primary-600 text-black-700 rounded-lg hover:bg-primary-700 transition-colors font-medium"
                       >
                         Send Request
                       </button>
@@ -310,7 +310,7 @@ function AddFriendModal({ isOpen, onClose, onSendRequest, isProcessing }: AddFri
               <button
                 onClick={handleSendRequest}
                 disabled={!selectedUser || isProcessing}
-                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex-1 px-4 py-2 bg-primary-600 text-black rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isProcessing ? 'Sending...' : 'Send Request'}
               </button>
@@ -327,41 +327,34 @@ export default function FriendsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [processingRequests, setProcessingRequests] = useState<Set<string>>(new Set());
-  const [hiddenRequests, setHiddenRequests] = useState<Set<string>>(new Set());
   
   const { user } = useAuth();
   const { friends, loading: friendsLoading } = useFriends();
   const { sentRequests, receivedRequests, sendFriendRequest, acceptRequest, declineRequest, cancelRequest, isProcessing } = useFriendRequests();
-  const { onlineFriends } = useRealtime();
+  const { onlineFriends, refreshFriendRequests } = useRealtime();
   const { addNotification } = useNotifications();
   const { addToast } = useToast();
 
   // Optimistic update functions
-  const handleAcceptRequest = async (requestId: string) => {
+  const handleDeclineRequest = async (requestId: string) => {
     if (processingRequests.has(requestId)) return; // Prevent multiple clicks
     
     setProcessingRequests(prev => new Set(prev).add(requestId));
-    setHiddenRequests(prev => new Set(prev).add(requestId)); // Hide immediately
     
     try {
-      await acceptRequest(requestId);
+      await declineRequest(requestId);
+      
       addToast({
         type: 'success',
-        title: 'Friend Request Accepted',
-        message: 'You are now friends!',
+        title: 'Friend Request Declined',
+        message: 'Request has been declined.',
         duration: 2000
       });
     } catch (error) {
-      // Show the request again if it failed
-      setHiddenRequests(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(requestId);
-        return newSet;
-      });
       addToast({
         type: 'error',
         title: 'Error',
-        message: 'Failed to accept friend request. Please try again.',
+        message: error instanceof Error ? error.message : 'Failed to decline friend request. Please try again.',
         duration: 3000
       });
     } finally {
@@ -373,31 +366,25 @@ export default function FriendsPage() {
     }
   };
 
-  const handleDeclineRequest = async (requestId: string) => {
+  const handleCancelRequest = async (requestId: string) => {
     if (processingRequests.has(requestId)) return; // Prevent multiple clicks
     
     setProcessingRequests(prev => new Set(prev).add(requestId));
-    setHiddenRequests(prev => new Set(prev).add(requestId)); // Hide immediately
     
     try {
-      await declineRequest(requestId);
+      await cancelRequest(requestId);
+      
       addToast({
         type: 'success',
-        title: 'Friend Request Declined',
-        message: 'Request has been declined.',
+        title: 'Friend Request Cancelled',
+        message: 'Request has been cancelled.',
         duration: 2000
       });
     } catch (error) {
-      // Show the request again if it failed
-      setHiddenRequests(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(requestId);
-        return newSet;
-      });
       addToast({
         type: 'error',
         title: 'Error',
-        message: 'Failed to decline friend request. Please try again.',
+        message: error instanceof Error ? error.message : 'Failed to cancel friend request. Please try again.',
         duration: 3000
       });
     } finally {
@@ -442,7 +429,6 @@ export default function FriendsPage() {
     if (processingRequests.has(requestId)) return; // Prevent multiple clicks
     
     setProcessingRequests(prev => new Set(prev).add(requestId));
-    setHiddenRequests(prev => new Set(prev).add(requestId)); // Hide immediately
     
     try {
       const request = receivedRequests.find(r => r.id === requestId);
@@ -461,7 +447,8 @@ export default function FriendsPage() {
         type: 'friend_accepted',
         title: 'Friend Request Accepted',
         message: `You are now friends with ${senderName}! Starting a conversation...`,
-        data: { senderId, senderName }
+        data: { senderId, senderName },
+        userId: user?.id || ''
       });
       
       setTimeout(async () => {
@@ -484,12 +471,6 @@ export default function FriendsPage() {
         }
       }, 1000);
     } catch (error) {
-      // Show the request again if it failed
-      setHiddenRequests(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(requestId);
-        return newSet;
-      });
       addToast({
         type: 'error',
         title: 'Error',
@@ -603,7 +584,7 @@ export default function FriendsPage() {
             >
               Requests
               {receivedRequests.length > 0 && activeTab !== "pending" && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-red-500 text-black text-xs rounded-full w-4 h-4 flex items-center justify-center">
                   {receivedRequests.length}
                 </span>
               )}
@@ -616,16 +597,16 @@ export default function FriendsPage() {
       <div className="hidden lg:block bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Friends</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-black">Friends</h1>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
               {friends.length} friends • {onlineFriendsCount} online
             </p>
           </div>
           <button 
             onClick={() => setShowAddFriendModal(true)}
-            className="flex items-center px-5 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 active:bg-primary-800 transition-all shadow-lg hover:shadow-xl font-bold text-base"
+            className="flex items-center px-5 py-3 bg-primary-600 text-black rounded-xl hover:bg-primary-700 active:bg-primary-800 transition-all shadow-lg hover:shadow-xl font-bold text-base"
           >
-            <UserPlusIcon className="w-5 h-5 mr-2 text-white" />
+            <UserPlusIcon className="w-5 h-5 mr-2 text-black" />
             Add Friend
           </button>
         </div>
@@ -691,16 +672,28 @@ export default function FriendsPage() {
         {activeTab === "pending" ? (
           /* Friend Requests */
           <div className="space-y-3 lg:space-y-4 max-w-4xl mx-auto">
-            <h2 className="text-base lg:text-lg font-semibold text-gray-900 dark:text-white mb-3 lg:mb-4">
-              Friend Requests
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base lg:text-lg font-semibold text-gray-900 dark:text-white">
+                Friend Requests
+              </h2>
+              <button
+                onClick={refreshFriendRequests}
+                disabled={isProcessing}
+                className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Refresh</span>
+              </button>
+            </div>
             
             {/* Received Requests */}
-            {receivedRequests.filter(request => !hiddenRequests.has(request.id)).length > 0 && (
+            {receivedRequests.length > 0 && (
               <div className="mb-6">
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Received</h3>
                 <div className="space-y-3">
-                  {receivedRequests.filter(request => !hiddenRequests.has(request.id)).map((request) => (
+                  {receivedRequests.map((request) => (
                     <div key={request.id} className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex items-center">
@@ -726,7 +719,7 @@ export default function FriendsPage() {
                           <button 
                             onClick={() => handleAcceptAndChat(request.id, request.sender_id)}
                             disabled={processingRequests.has(request.id)}
-                            className="flex-1 sm:flex-none px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors flex items-center justify-center font-bold shadow-md"
+                            className="flex-1 sm:flex-none px-4 py-2.5 bg-primary-600 text-black rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors flex items-center justify-center font-bold shadow-md"
                           >
                             {processingRequests.has(request.id) ? (
                               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
@@ -734,18 +727,6 @@ export default function FriendsPage() {
                               <ChatBubbleLeftIcon className="w-4 h-4 mr-1 text-white" />
                             )}
                             {processingRequests.has(request.id) ? 'Accepting...' : 'Accept & Chat'}
-                          </button>
-                          <button 
-                            onClick={() => handleAcceptRequest(request.id)}
-                            disabled={processingRequests.has(request.id)}
-                            className="flex-1 sm:flex-none px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center justify-center font-bold shadow-md"
-                          >
-                            {processingRequests.has(request.id) ? (
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                            ) : (
-                              <CheckIcon className="w-4 h-4 mr-1 text-white" />
-                            )}
-                            {processingRequests.has(request.id) ? 'Accepting...' : 'Accept'}
                           </button>
                           <button 
                             onClick={() => handleDeclineRequest(request.id)}
@@ -768,11 +749,11 @@ export default function FriendsPage() {
             )}
 
             {/* Sent Requests */}
-            {sentRequests.filter(request => !hiddenRequests.has(request.id)).length > 0 && (
+            {sentRequests.length > 0 && (
               <div>
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Sent</h3>
                 <div className="space-y-3">
-                  {sentRequests.filter(request => !hiddenRequests.has(request.id)).map((request) => (
+                  {sentRequests.map((request) => (
                     <div key={request.id} className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center">
@@ -783,7 +764,7 @@ export default function FriendsPage() {
                             fallbackText={request.receiver_profile?.full_name || request.receiver_profile?.username || '?'}
                           />
                           <div className="ml-3">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">
+                            <h3 className="font-semibold text-gray-900 dark:text-black">
                               {request.receiver_profile?.full_name || request.receiver_profile?.username || 'Unknown User'}
                             </h3>
                             <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -795,11 +776,18 @@ export default function FriendsPage() {
                           </div>
                         </div>
                         <button 
-                          onClick={() => cancelRequest(request.id)}
-                          disabled={isProcessing}
-                          className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                          onClick={() => handleCancelRequest(request.id)}
+                          disabled={processingRequests.has(request.id)}
+                          className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Cancel
+                          {processingRequests.has(request.id) ? (
+                            <div className="flex items-center space-x-2">
+                              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                              <span>Cancelling...</span>
+                            </div>
+                          ) : (
+                            'Cancel'
+                          )}
                         </button>
                       </div>
                     </div>
@@ -808,7 +796,7 @@ export default function FriendsPage() {
               </div>
             )}
 
-            {receivedRequests.filter(request => !hiddenRequests.has(request.id)).length === 0 && sentRequests.filter(request => !hiddenRequests.has(request.id)).length === 0 && (
+            {receivedRequests.length === 0 && sentRequests.length === 0 && (
               <div className="bg-white dark:bg-gray-800 rounded-xl p-8 text-center">
                 <UserGroupIcon className="w-12 h-12 mx-auto text-gray-400 mb-3" />
                 <p className="text-gray-600 dark:text-gray-400">No pending friend requests</p>
@@ -892,9 +880,9 @@ export default function FriendsPage() {
       {/* Mobile Add Friend FAB */}
       <button 
         onClick={() => setShowAddFriendModal(true)}
-        className="lg:hidden fixed bottom-20 right-4 w-14 h-14 bg-primary-600 text-white rounded-full shadow-xl hover:bg-primary-700 active:bg-primary-800 transition-all flex items-center justify-center border-2 border-white dark:border-gray-800"
+        className="lg:hidden fixed bottom-20 right-4 w-14 h-14 bg-primary-600 text-black rounded-full shadow-xl hover:bg-primary-700 active:bg-primary-800 transition-all flex items-center justify-center border-2 border-white dark:border-gray-800"
       >
-        <UserPlusIcon className="w-7 h-7 text-white" />
+        <UserPlusIcon className="w-7 h-7 text-black" />
       </button>
 
       {/* Add Friend Modal */}

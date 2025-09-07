@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRealtime } from '@/contexts/RealtimeContext';
 import { FriendsService, FriendRequest, SearchUser } from '@/lib/friends';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 interface UseFriendRequestsReturn {
   sentRequests: FriendRequest[];
@@ -36,7 +37,20 @@ export function useFriendRequests(): UseFriendRequestsReturn {
     setError(null);
     
     try {
-      // Create optimistic friend request
+      // Get receiver profile data first for optimistic update
+      let receiverProfile = null;
+      try {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('id, full_name, username, avatar_url, bio, is_online')
+          .eq('id', receiverId)
+          .single();
+        receiverProfile = profile;
+      } catch (profileError) {
+        console.warn('⚠️ Could not fetch receiver profile for optimistic update:', profileError);
+      }
+
+      // Create optimistic friend request with real profile data
       const optimisticRequest = {
         id: `temp-${Date.now()}`, // Temporary ID
         sender_id: user.id,
@@ -45,7 +59,7 @@ export function useFriendRequests(): UseFriendRequestsReturn {
         message: message || undefined,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        receiver_profile: {
+        receiver_profile: receiverProfile || {
           id: receiverId,
           full_name: null,
           username: null,
@@ -79,7 +93,10 @@ export function useFriendRequests(): UseFriendRequestsReturn {
     
     try {
       await FriendsService.acceptFriendRequest(requestId, user.id);
+      
+      // Single refresh after success - the real-time subscription will handle additional updates
       await refreshFriendRequests();
+      
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to accept friend request');
     } finally {
@@ -95,7 +112,10 @@ export function useFriendRequests(): UseFriendRequestsReturn {
     
     try {
       await FriendsService.declineFriendRequest(requestId, user.id);
+      
+      // Single refresh after success - the real-time subscription will handle additional updates
       await refreshFriendRequests();
+      
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to decline friend request');
     } finally {
@@ -112,7 +132,10 @@ export function useFriendRequests(): UseFriendRequestsReturn {
     try {
       // For now, we'll decline our own sent request
       await FriendsService.declineFriendRequest(requestId, user.id);
+      
+      // Single refresh after success - the real-time subscription will handle additional updates
       await refreshFriendRequests();
+      
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to cancel friend request');
     } finally {

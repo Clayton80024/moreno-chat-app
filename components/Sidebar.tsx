@@ -88,14 +88,14 @@ export default function Sidebar() {
         <OnlineFriendsList maxDisplay={3} />
       </div>
 
-      {/* New Chat Button */}
+      {/* New Chat Button 
       <div className="p-4 border-t border-gray-100 dark:border-gray-700">
         <button className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 transition-all duration-200 shadow-md hover:shadow-lg">
-          <PlusCircleIcon className="w-5 h-5 mr-2" />
-          <span className="font-medium">New Chat</span>
+          <PlusCircleIcon className="w-5 h-5 mr-2 text-black" />
+          <span className="font-medium text-black">New Chat</span>
         </button>
       </div>
-
+       */}
       {/* User Profile Section */}
       <div className="p-4 border-t border-gray-100 dark:border-gray-700">
         <div className="flex items-center px-3 py-2">

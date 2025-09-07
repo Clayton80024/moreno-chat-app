@@ -7,6 +7,7 @@ import { SimpleThemeProvider } from '@/components/SimpleThemeProvider';
 import { RealtimeProvider } from '@/contexts/RealtimeContext';
 import { NotificationProvider } from '@/contexts/NotificationContext';
 import { ToastProvider } from '@/components/Toast';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,19 +24,21 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
                   <body className={`${inter.className} antialiased bg-gray-50 dark:bg-gray-900`}>
-              <AuthProvider>
-                <RealtimeProvider>
-                  <NotificationProvider>
-                    <ToastProvider>
-                      <SimpleThemeProvider>
-                        <LayoutWrapper>
-                          {children}
-                        </LayoutWrapper>
-                      </SimpleThemeProvider>
-                    </ToastProvider>
-                  </NotificationProvider>
-                </RealtimeProvider>
-              </AuthProvider>
+              <ErrorBoundary>
+                <AuthProvider>
+                  <RealtimeProvider>
+                    <NotificationProvider>
+                      <ToastProvider>
+                        <SimpleThemeProvider>
+                          <LayoutWrapper>
+                            {children}
+                          </LayoutWrapper>
+                        </SimpleThemeProvider>
+                      </ToastProvider>
+                    </NotificationProvider>
+                  </RealtimeProvider>
+                </AuthProvider>
+              </ErrorBoundary>
             </body>
     </html>
   );

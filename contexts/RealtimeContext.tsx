@@ -80,9 +80,13 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    initializeRealtime();
+    // Add a small delay to ensure proper cleanup
+    const timeoutId = setTimeout(() => {
+      initializeRealtime();
+    }, 100);
     
     return () => {
+      clearTimeout(timeoutId);
       // Cleanup on unmount
       channels.forEach(channel => {
         supabase.removeChannel(channel);
@@ -135,6 +139,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
     
     try {
+      console.log('🔵 Loading friend requests for user:', user.id);
+      
       // First test if the table is accessible
       const isTableAccessible = await FriendsService.testFriendRequestsTable();
       if (!isTableAccessible) {
@@ -144,9 +150,32 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       }
 
       const requests = await FriendsService.getFriendRequests(user.id);
-      setFriendRequests(requests);
+      console.log('✅ Friend requests loaded:', requests);
+      
+      // Filter out any requests that are not pending (accepted/declined)
+      const filteredRequests = {
+        sent: requests.sent.filter(req => req.status === 'pending'),
+        received: requests.received.filter(req => req.status === 'pending')
+      };
+      
+      // Deduplicate requests by ID to prevent duplicate keys
+      const deduplicatedRequests = {
+        sent: filteredRequests.sent.filter((req, index, self) => 
+          index === self.findIndex(r => r.id === req.id)
+        ),
+        received: filteredRequests.received.filter((req, index, self) => 
+          index === self.findIndex(r => r.id === req.id)
+        )
+      };
+      
+      console.log('✅ Deduplicated friend requests (pending only):', deduplicatedRequests);
+      setFriendRequests(deduplicatedRequests);
     } catch (error) {
       console.error('🔴 Error loading friend requests:', error);
+      console.error('🔴 Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        user: user.id
+      });
       // Set empty arrays on error to prevent UI crashes
       setFriendRequests({ sent: [], received: [] });
     }
@@ -157,9 +186,16 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     
     try {
       const userFriends = await FriendsService.getFriends(user.id, 'accepted');
-      setFriends(userFriends);
+      
+      // Deduplicate friends by ID to prevent duplicate keys
+      const deduplicatedFriends = userFriends.filter((friend, index, self) => 
+        index === self.findIndex(f => f.id === friend.id)
+      );
+      
+      setFriends(deduplicatedFriends);
     } catch (error) {
       console.error('🔴 Error loading friends:', error);
+      setFriends([]);
     }
   };
 
@@ -191,52 +227,17 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         event: 'INSERT',
         schema: 'public',
         table: 'messages',
-        filter: `sender_id=eq.${user.id}`
-      }, async (payload) => {
-        const newMessage = payload.new as Message;
-        console.log('🔵 New message received via realtime:', newMessage);
-        
-        // Add message to messages list, replacing optimistic message if it exists
-        setMessages(prev => {
-          // Remove any optimistic message with same content and sender
-          const filteredMessages = prev.filter(msg => 
-            !(msg.id.startsWith('temp-') && 
-              msg.sender_id === newMessage.sender_id && 
-              msg.content === newMessage.content &&
-              msg.chat_id === newMessage.chat_id)
-          );
-          return [...filteredMessages, newMessage];
-        });
-        
-        // Update chat's last message and increment unread count
-        setChats(prev => prev.map(chat => {
-          if (chat.id === newMessage.chat_id) {
-            return {
-              ...chat,
-              last_message: newMessage,
-              last_message_at: newMessage.created_at,
-              unread_count: newMessage.sender_id === user.id ? chat.unread_count : (chat.unread_count || 0) + 1
-            };
-          }
-          return chat;
-        }));
-        
-        // Update unread counts (only for messages from other users)
-        if (newMessage.sender_id !== user.id) {
-          setUnreadCounts(prev => ({
-            ...prev,
-            [newMessage.chat_id]: (prev[newMessage.chat_id] || 0) + 1
-          }));
-        }
-      })
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-        filter: `sender_id=neq.${user.id}`
+        filter: `sender_id=neq.${user.id}` // Only messages from other users
       }, async (payload) => {
         const newMessage = payload.new as Message;
         console.log('🔵 New message from other user:', newMessage);
+        
+        // Check if user is participant in this chat before processing
+        const isParticipant = chats.some(chat => chat.id === newMessage.chat_id);
+        if (!isParticipant) {
+          console.log('🔵 User not participant in chat, ignoring message');
+          return;
+        }
         
         // Add message to messages list, replacing optimistic message if it exists
         setMessages(prev => {
@@ -281,13 +282,39 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         schema: 'public',
         table: 'friend_requests',
         filter: `or(sender_id.eq.${user.id},receiver_id.eq.${user.id})`
-      }, async () => {
-        await Promise.all([
-          loadFriendRequests(),
-          loadFriends() // Also refresh friends in case a request was accepted
-        ]);
+      }, async (payload) => {
+        console.log('🔵 Friend request change detected:', payload);
+        console.log('🔵 Event type:', payload.eventType);
+        console.log('🔵 New data:', payload.new);
+        console.log('🔵 Old data:', payload.old);
+        
+        // Handle different event types
+        if (payload.eventType === 'INSERT') {
+          console.log('🔵 New friend request created');
+        } else if (payload.eventType === 'UPDATE') {
+          console.log('🔵 Friend request updated:', payload.new);
+          // If status changed to accepted/declined, remove from pending list
+          if (payload.new.status !== 'pending') {
+            console.log('🔵 Request processed, removing from pending list');
+          }
+        } else if (payload.eventType === 'DELETE') {
+          console.log('🔵 Friend request deleted');
+        }
+        
+        // Always refresh to get the latest state - with a small delay to ensure DB consistency
+        console.log('🔵 Refreshing friend requests in 100ms...');
+        setTimeout(async () => {
+          console.log('🔵 Executing refresh now...');
+          await Promise.all([
+            loadFriendRequests(),
+            loadFriends() // Also refresh friends in case a request was accepted
+          ]);
+          console.log('🔵 Refresh completed');
+        }, 100);
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('🔵 Friend requests channel status:', status);
+      });
 
     newChannels.push(friendRequestsChannel);
 
