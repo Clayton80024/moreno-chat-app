@@ -23,7 +23,7 @@ interface UseChatMessagesReturn {
 }
 
 export function useChatMessages({ chatId, limit = 50 }: UseChatMessagesProps): UseChatMessagesReturn {
-  const { messages: realtimeMessages, sendMessage: realtimeSendMessage } = useRealtime();
+  const { messages: realtimeMessages, sendMessage: realtimeSendMessage, loadChatMessages } = useRealtime();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +37,7 @@ export function useChatMessages({ chatId, limit = 50 }: UseChatMessagesProps): U
     return realtimeMessages.filter(msg => msg.chat_id === chatId);
   }, [realtimeMessages, chatId]);
 
-  // Load initial messages
+  // Load initial messages only once when chatId changes
   useEffect(() => {
     if (!chatId || !user?.id) return;
     
@@ -46,16 +46,10 @@ export function useChatMessages({ chatId, limit = 50 }: UseChatMessagesProps): U
       setError(null);
       
       try {
-        const newMessages = await ChatsService.getChatMessages(
-          chatId, 
-          user.id, 
-          limit, 
-          0
-        );
-        
-        // Don't set local messages state, rely on real-time updates
+        // Use the RealtimeContext's loadChatMessages to avoid conflicts
+        await loadChatMessages(chatId);
         setOffset(limit);
-        setHasMore(newMessages.length === limit);
+        setHasMore(true); // Assume there might be more messages
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load messages');
       } finally {
@@ -64,7 +58,7 @@ export function useChatMessages({ chatId, limit = 50 }: UseChatMessagesProps): U
     };
 
     loadInitialMessages();
-  }, [chatId, user?.id, limit]);
+  }, [chatId, user?.id, loadChatMessages]);
 
   const loadMessages = useCallback(async (reset = true) => {
     if (!chatId || !user?.id) return;
@@ -136,12 +130,7 @@ export function useChatMessages({ chatId, limit = 50 }: UseChatMessagesProps): U
     }
   }, [user]);
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages]);
+  // Auto-scroll is handled by the chat page component
 
   return {
     messages,

@@ -140,51 +140,82 @@ export class PresenceService {
 
   // Get online friends for a user
   static async getOnlineFriends(userId: string): Promise<OnlineUser[]> {
-    const { data, error } = await supabase
-      .from('friends')
-      .select(`
-        friend_id,
-        friend_profile:user_profiles!friends_friend_id_fkey(
-          id,
-          full_name,
-          username,
-          avatar_url,
-          is_online,
-          last_seen
-        ),
-        presence:user_presence!friends_friend_id_fkey(
-          status,
-          last_seen
-        )
-      `)
-      .eq('user_id', userId)
-      .eq('status', 'accepted')
+    try {
+      console.log('🔵 Getting online friends for user:', userId);
+      
+      // First, get all accepted friends
+      const { data: friends, error: friendsError } = await supabase
+        .from('friends')
+        .select('friend_id')
+        .eq('user_id', userId)
+        .eq('status', 'accepted');
 
-    if (error) {
-      console.error('🔴 Error fetching online friends:', error)
-      throw new Error(error.message)
-    }
+      if (friendsError) {
+        console.error('🔴 Error fetching friends:', friendsError);
+        console.error('🔴 Error details:', friendsError);
+        throw new Error(`Failed to fetch friends: ${friendsError.message}`);
+      }
 
-    const onlineFriends = (data || [])
-      .filter(friend => {
-        const presence = Array.isArray(friend.presence) ? friend.presence[0] : friend.presence;
-        return presence?.status === 'online';
-      })
-      .map(friend => {
-        const profile = Array.isArray(friend.friend_profile) ? friend.friend_profile[0] : friend.friend_profile;
-        const presence = Array.isArray(friend.presence) ? friend.presence[0] : friend.presence;
+      if (!friends || friends.length === 0) {
+        console.log('🔵 No friends found for user');
+        return [];
+      }
+
+      const friendIds = friends.map(f => f.friend_id);
+      console.log('🔵 Found friends:', friendIds.length, 'friend IDs:', friendIds);
+      console.log('🔵 Friends details:', friends.map(f => ({ id: f.friend_id })));
+
+      // Get presence data for all friends
+      const { data: presenceData, error: presenceError } = await supabase
+        .from('user_presence')
+        .select('user_id, status, last_seen')
+        .in('user_id', friendIds)
+        .eq('status', 'online');
+
+      if (presenceError) {
+        console.error('🔴 Error fetching presence data:', presenceError);
+        throw new Error(presenceError.message);
+      }
+
+      if (!presenceData || presenceData.length === 0) {
+        console.log('🔵 No online friends found');
+        return [];
+      }
+
+      const onlineFriendIds = presenceData.map(p => p.user_id);
+      console.log('🔵 Online friend IDs:', onlineFriendIds);
+
+      // Get profile data for online friends
+      const { data: profiles, error: profilesError } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, username, avatar_url, is_online, last_seen')
+        .in('id', onlineFriendIds);
+
+      if (profilesError) {
+        console.error('🔴 Error fetching profiles:', profilesError);
+        throw new Error(profilesError.message);
+      }
+
+      // Combine presence and profile data
+      const onlineFriends = (profiles || []).map(profile => {
+        const presence = presenceData.find(p => p.user_id === profile.id);
         return {
           id: profile.id,
           full_name: profile.full_name,
           username: profile.username,
           avatar_url: profile.avatar_url,
           is_online: true,
-          last_seen: presence.last_seen,
-          status: presence.status as 'online' | 'away' | 'offline'
+          last_seen: presence?.last_seen || profile.last_seen,
+          status: presence?.status as 'online' | 'away' | 'offline' || 'online'
         };
-      })
+      });
 
-    return onlineFriends
+      console.log('✅ Successfully loaded online friends:', onlineFriends.length);
+      return onlineFriends;
+    } catch (error) {
+      console.error('🔴 Error in getOnlineFriends:', error);
+      throw error;
+    }
   }
 
   // Get all online users (for admin purposes or public directory)

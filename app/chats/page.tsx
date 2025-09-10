@@ -17,10 +17,11 @@ import { useChatMessages } from "@/hooks/useChatMessages";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFriends } from "@/hooks/useFriends";
 import { StatusIndicator } from "@/components/StatusIndicator";
-import { ChatsService } from "@/lib/chats";
+import { ChatsService, Message } from "@/lib/chats";
 import { countries, Country } from "@/lib/countries";
 import ChatItem from "@/components/ChatItem";
 import MessageBubble from "@/components/MessageBubble";
+import TypingIndicator from "@/components/TypingIndicator";
 
 
 export default function ChatsPage() {
@@ -32,6 +33,10 @@ export default function ChatsPage() {
   const [showEmojiSuggestions, setShowEmojiSuggestions] = useState(false);
   const [emojiCursorPosition, setEmojiCursorPosition] = useState(0);
   
+  // Reply and Edit state
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  
   // Friend suggestion state
   const [friendSuggestions, setFriendSuggestions] = useState<any[]>([]);
   const [showFriendSuggestions, setShowFriendSuggestions] = useState(false);
@@ -40,7 +45,7 @@ export default function ChatsPage() {
   const [selectedFriendIndex, setSelectedFriendIndex] = useState(0);
   
   
-  const { chats, setCurrentChat, sendMessage, markMessagesAsRead, onlineFriends } = useRealtime();
+  const { chats, setCurrentChat, sendMessage, markMessagesAsRead, onlineFriends, typingIndicators, handleTyping } = useRealtime();
   const { user } = useAuth();
   const { friends } = useFriends();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -66,6 +71,7 @@ export default function ChatsPage() {
     loading: messagesLoading, 
     error: messagesError, 
     sendMessage: sendChatMessage, 
+    editMessage,
     isSending 
   } = useChatMessages({ 
     chatId: selectedChatId || '', 
@@ -77,13 +83,42 @@ export default function ChatsPage() {
   const handleSendMessage = useCallback(async () => {
     if (messageInput.trim() && selectedChatId && !isSending) {
       try {
-        await sendChatMessage(messageInput.trim());
+        if (editingMessage) {
+          // Edit existing message
+          await editMessage(editingMessage.id, messageInput.trim());
+          setEditingMessage(null);
+        } else {
+          // Send new message (with reply if replying)
+          await sendChatMessage(messageInput.trim(), replyingTo?.id);
+          setReplyingTo(null);
+        }
         setMessageInput("");
       } catch (error) {
         console.error('Error sending message:', error);
       }
     }
-  }, [messageInput, selectedChatId, isSending, sendChatMessage]);
+  }, [messageInput, selectedChatId, isSending, sendChatMessage, editingMessage, replyingTo]);
+
+  // Reply handler
+  const handleReply = useCallback((message: Message) => {
+    setReplyingTo(message);
+    setEditingMessage(null);
+    setMessageInput("");
+  }, []);
+
+  // Edit handler
+  const handleEdit = useCallback((message: Message) => {
+    setEditingMessage(message);
+    setReplyingTo(null);
+    setMessageInput(message.content);
+  }, []);
+
+  // Cancel reply/edit
+  const handleCancelReplyEdit = useCallback(() => {
+    setReplyingTo(null);
+    setEditingMessage(null);
+    setMessageInput("");
+  }, []);
 
   const handleChatSelect = useCallback(async (chatId: string) => {
     setSelectedChatId(chatId);
@@ -95,10 +130,15 @@ export default function ChatsPage() {
       // Mark messages as read
       await markMessagesAsRead(chatId);
       
-      // Scroll to bottom when switching chats
+      // Enhanced scroll to bottom when switching chats
       setTimeout(() => {
         scrollToBottom();
       }, 100);
+      
+      // Additional scroll after messages load
+      setTimeout(() => {
+        scrollToBottom();
+      }, 300);
     }
   }, [chats, setCurrentChat, markMessagesAsRead]);
 
@@ -163,6 +203,11 @@ export default function ChatsPage() {
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setMessageInput(value);
+    
+    // Handle typing indicator
+    if (selectedChatId) {
+      handleTyping(selectedChatId);
+    }
     
     // Check for hashtag patterns (emojis)
     const hashtagMatch = value.match(/#(\w+)$/);
@@ -293,13 +338,28 @@ export default function ChatsPage() {
     return chats.reduce((sum, chat) => sum + (chat.unread_count || 0), 0);
   }, [chats]);
 
-  // Scroll to bottom function
-  const scrollToBottom = () => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+  // Scroll to bottom function - enhanced for reliability
+  const scrollToBottom = useCallback(() => {
+    if (messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      const maxScroll = container.scrollHeight - container.clientHeight;
+      
+      // Use smooth scrolling if near bottom, instant if far from bottom
+      const currentScroll = container.scrollTop;
+      const isNearBottom = maxScroll - currentScroll < 100;
+      
+      if (isNearBottom) {
+        container.scrollTo({
+          top: maxScroll,
+          behavior: 'smooth'
+        });
+      } else {
+        container.scrollTop = maxScroll;
+      }
+      
+      setShowScrollButton(false);
     }
-    setShowScrollButton(false);
-  };
+  }, []);
 
   // Handle scroll events to show/hide scroll-to-bottom button
   const handleScroll = () => {
@@ -312,11 +372,28 @@ export default function ChatsPage() {
 
   // Auto-scroll to bottom when new messages arrive or chat changes
   useEffect(() => {
-    // Small delay to ensure DOM is updated
-    const timeoutId = setTimeout(scrollToBottom, 100);
-    
-    return () => clearTimeout(timeoutId);
-  }, [messages, selectedChatId]);
+    if (messages.length > 0) {
+      // Use multiple timing strategies for reliable scrolling
+      const scrollImmediately = () => {
+        if (messagesContainerRef.current) {
+          messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        }
+      };
+      
+      // Immediate scroll
+      scrollImmediately();
+      
+      // Additional scroll after DOM updates
+      requestAnimationFrame(() => {
+        scrollImmediately();
+      });
+      
+      // Final scroll after a small delay
+      setTimeout(() => {
+        scrollImmediately();
+      }, 50);
+    }
+  }, [messages.length, selectedChatId, messages]); // Include messages array for better reactivity
 
   return (
     <div className="flex h-full relative bg-gray-50 dark:bg-gray-900">
@@ -501,10 +578,31 @@ export default function ChatsPage() {
                       isOwnMessage={isOwnMessage}
                       user={user}
                       otherUserProfile={otherUserProfile}
+                      onReply={handleReply}
+                      onEdit={handleEdit}
                     />
                   );
                 })}
-                <div ref={messagesEndRef} />
+                
+                {/* Typing Indicator */}
+                {(() => {
+                  console.log('🔍 Typing Debug:', {
+                    selectedChatId,
+                    typingIndicators,
+                    hasTypingForChat: selectedChatId ? typingIndicators[selectedChatId] : null,
+                    typingCount: selectedChatId && typingIndicators[selectedChatId] ? typingIndicators[selectedChatId].length : 0
+                  });
+                  
+                  return selectedChatId && typingIndicators[selectedChatId] && typingIndicators[selectedChatId].length > 0 ? (
+                    <TypingIndicator 
+                      typingUsers={typingIndicators[selectedChatId].map(t => t.user_profile || { id: t.user_id, full_name: null, username: null, avatar_url: null })}
+                      className="mb-2"
+                    />
+                  ) : null;
+                })()}
+                
+                
+                <div ref={messagesEndRef} data-messages-end />
               </div>
             )}
             
@@ -522,6 +620,40 @@ export default function ChatsPage() {
 
           {/* Message Input - Fixed to Bottom */}
           <div className="absolute bottom-0 left-0 right-0 px-3 sm:px-4 py-3 sm:py-4 border-t-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-30">
+            {/* Reply/Edit Preview */}
+            {(replyingTo || editingMessage) && (
+              <div className="mb-3 px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${
+                      editingMessage ? 'bg-yellow-500' : 'bg-blue-500'
+                    }`}></div>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {editingMessage ? 'Editing message' : 'Replying to'}
+                    </span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {replyingTo?.sender_profile?.full_name || replyingTo?.sender_profile?.username || 'Unknown'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleCancelReplyEdit}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                {(replyingTo || editingMessage) && (
+                  <div className="mt-2 p-2 bg-white dark:bg-gray-600 rounded border border-gray-200 dark:border-gray-500">
+                    <p className="text-sm text-gray-600 dark:text-gray-300 truncate">
+                      {(replyingTo || editingMessage)?.content}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            
             <div className="flex items-center justify-center max-w-4xl mx-auto">
               <div className="w-full max-w-2xl relative">
                 <div className="flex items-center space-x-3 bg-gray-100 dark:bg-gray-700 rounded-full px-4 py-2 border border-gray-300 dark:border-gray-600 focus-within:ring-2 focus-within:ring-primary-500 focus-within:bg-white dark:focus-within:bg-gray-600 focus-within:border-primary-500 transition-all">
@@ -665,6 +797,7 @@ export default function ChatsPage() {
           </div>
         </div>
       )}
+
       
     </div>
   );

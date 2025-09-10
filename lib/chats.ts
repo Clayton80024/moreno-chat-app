@@ -18,7 +18,6 @@ export interface ChatParticipant {
   id: string
   chat_id: string
   user_id: string
-  role: 'admin' | 'member'
   joined_at: string
   last_read_at: string
   // Joined profile data
@@ -323,17 +322,15 @@ export class ChatsService {
 
     // Add participants (including the creator)
     const participants = [
-      // Add the creator as admin
+      // Add the creator
       {
         chat_id: chat.id,
-        user_id: creatorId,
-        role: 'admin'
+        user_id: creatorId
       },
-      // Add other participants as members
+      // Add other participants
       ...chatData.participant_ids.map(userId => ({
         chat_id: chat.id,
-        user_id: userId,
-        role: 'member'
+        user_id: userId
       }))
     ]
 
@@ -369,24 +366,11 @@ export class ChatsService {
 
   // Add participant to chat
   static async addParticipant(chatId: string, userId: string, addedBy: string): Promise<void> {
-    // Verify adder is admin
-    const { data: adderParticipant, error: adderError } = await supabase
-      .from('chat_participants')
-      .select('role')
-      .eq('chat_id', chatId)
-      .eq('user_id', addedBy)
-      .single()
-
-    if (adderError || adderParticipant?.role !== 'admin') {
-      throw new Error('Only admins can add participants')
-    }
-
     const { error } = await supabase
       .from('chat_participants')
       .insert({
         chat_id: chatId,
-        user_id: userId,
-        role: 'member'
+        user_id: userId
       })
 
     if (error) {
@@ -397,20 +381,7 @@ export class ChatsService {
 
   // Remove participant from chat
   static async removeParticipant(chatId: string, userId: string, removedBy: string): Promise<void> {
-    // Verify remover is admin or removing themselves
-    if (userId !== removedBy) {
-      const { data: removerParticipant, error: removerError } = await supabase
-        .from('chat_participants')
-        .select('role')
-        .eq('chat_id', chatId)
-        .eq('user_id', removedBy)
-        .single()
-
-      if (removerError || removerParticipant?.role !== 'admin') {
-        throw new Error('Only admins can remove participants')
-      }
-    }
-
+    // Allow anyone to remove participants (or restrict to self-removal only)
     const { error } = await supabase
       .from('chat_participants')
       .delete()
@@ -492,18 +463,43 @@ export class ChatsService {
         });
       }
 
-      // Get message status for each message
+      // Get message status and reply messages for each message
       const messagesWithStatus = await Promise.all(
         messages.map(async (message) => {
           try {
+            // Get message status
             const { data: status } = await supabase
               .from('message_status')
               .select('*')
               .eq('message_id', message.id);
 
+            // Get reply message if exists
+            let replyToMessage = null;
+            if (message.reply_to_id) {
+              try {
+                const { data: replyMessage } = await supabase
+                  .from('messages')
+                  .select('*')
+                  .eq('id', message.reply_to_id)
+                  .single();
+                
+                if (replyMessage) {
+                  // Get reply message sender profile
+                  const replySenderProfile = profileMap.get(replyMessage.sender_id);
+                  replyToMessage = {
+                    ...replyMessage,
+                    sender_profile: replySenderProfile
+                  };
+                }
+              } catch (replyError) {
+                console.warn('⚠️ Error fetching reply message:', replyError);
+              }
+            }
+
             return {
               ...message,
               sender_profile: profileMap.get(message.sender_id) || null,
+              reply_to_message: replyToMessage,
               status: status || []
             };
           } catch (statusError) {
@@ -511,6 +507,7 @@ export class ChatsService {
             return {
               ...message,
               sender_profile: profileMap.get(message.sender_id) || null,
+              reply_to_message: null,
               status: []
             };
           }

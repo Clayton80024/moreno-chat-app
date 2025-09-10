@@ -6,8 +6,9 @@ import { countries } from '@/lib/countries';
 import { FriendProfileModal } from './FriendProfileModal';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useOptimizedTranslation } from "@/hooks/useOptimizedTranslation";
 import { getCountryInfo, needsTranslation } from '@/lib/translation';
+import { ArrowUturnLeftIcon, PencilIcon } from '@heroicons/react/24/outline';
 
 interface MessageBubbleProps {
   message: Message;
@@ -23,6 +24,8 @@ interface MessageBubbleProps {
     is_online: boolean;
     last_seen: string | null;
   };
+  onReply?: (message: Message) => void;
+  onEdit?: (message: Message) => void;
 }
 
 // Helper function to get country flag from country name
@@ -58,7 +61,7 @@ const renderMessageContent = (content: string, isOwnMessage: boolean, onMentionC
   });
 };
 
-const MessageBubble = React.memo(({ message, isOwnMessage, user, otherUserProfile }: MessageBubbleProps) => {
+const MessageBubble = React.memo(({ message, isOwnMessage, user, otherUserProfile, onReply, onEdit }: MessageBubbleProps) => {
   const { profile } = useAuth();
   const senderProfile = message.sender_profile;
   const messageTime = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -74,13 +77,13 @@ const MessageBubble = React.memo(({ message, isOwnMessage, user, otherUserProfil
     ? otherUserProfile?.location || '' // For my messages, receiver is the other user
     : profile?.location || ''; // For their messages, receiver is me (using profile, not user_metadata)
   
-  // Use translation hook for all messages that need translation
-  const { translation, isLoading: isTranslating, error: translationError } = useTranslation(
+  // Use optimized translation hook
+  const { translation, isLoading: isTranslating, error: translationError, isCommand, commandResult } = useOptimizedTranslation(
     message.content,
-    senderCountry,
-    receiverCountry,
     {
-      enabled: needsTranslation(senderCountry, receiverCountry)
+      enabled: true,
+      senderCountry,
+      receiverCountry
     }
   );
 
@@ -117,8 +120,7 @@ const MessageBubble = React.memo(({ message, isOwnMessage, user, otherUserProfil
 
   return (
     <div className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
-      <div className={`
-        max-w-[75%] sm:max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-md
+      <div className={`group max-w-[75%] sm:max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-md
         ${isOwnMessage 
           ? "bg-primary-600 text-black ml-12" 
           : "bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white mr-12"
@@ -137,8 +139,63 @@ const MessageBubble = React.memo(({ message, isOwnMessage, user, otherUserProfil
             })()}
           </div>
         )}
+        
+        {/* Reply Preview */}
+        {message.reply_to_id && message.reply_to_message && (
+          <div className={`mb-2 p-2 rounded-lg border-l-4 ${
+            isOwnMessage 
+              ? "bg-primary-500/10 border-primary-500" 
+              : "bg-gray-100 dark:bg-gray-600 border-gray-400"
+          }`}>
+            <div className="flex items-center space-x-2 mb-1">
+              <ArrowUturnLeftIcon className={`w-3 h-3 ${
+                isOwnMessage ? "text-primary-400" : "text-gray-500"
+              }`} />
+              <span className={`text-xs font-medium ${
+                isOwnMessage ? "text-primary-300" : "text-gray-600 dark:text-gray-400"
+              }`}>
+                Replying to {message.reply_to_message.sender_profile?.full_name || message.reply_to_message.sender_profile?.username || 'Unknown'}
+              </span>
+            </div>
+            <p className={`text-xs truncate ${
+              isOwnMessage ? "text-primary-200" : "text-gray-700 dark:text-gray-300"
+            }`}>
+              {message.reply_to_message.content}
+            </p>
+          </div>
+        )}
+        
         {/* Message Content */}
         <div className="space-y-2">
+          {/* Command Result */}
+          {isCommand && commandResult && (
+            <div className={`rounded-lg p-3 border-l-4 border-blue-500 ${
+              isOwnMessage 
+                ? "bg-blue-500/10" 
+                : "bg-blue-50 dark:bg-blue-900/20"
+            }`}>
+              <div className="flex items-start space-x-2">
+                <span className="text-blue-500 text-lg">⚡</span>
+                <div className="flex-1">
+                  <p className={`text-sm font-medium ${
+                    isOwnMessage 
+                      ? "text-blue-100" 
+                      : "text-blue-800 dark:text-blue-200"
+                  }`}>
+                    Command Result:
+                  </p>
+                  <pre className={`text-xs mt-1 whitespace-pre-wrap break-words ${
+                    isOwnMessage 
+                      ? "text-blue-200" 
+                      : "text-blue-700 dark:text-blue-300"
+                  }`}>
+                    {commandResult}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {/* Original Message */}
           <p className={`text-sm sm:text-base leading-relaxed break-words font-medium ${
             isOwnMessage ? "text-black" : "text-gray-900 dark:text-gray-100"
@@ -146,8 +203,8 @@ const MessageBubble = React.memo(({ message, isOwnMessage, user, otherUserProfil
             {renderMessageContent(message.content, isOwnMessage, handleMentionClick)}
           </p>
           
-          {/* Translation (for all messages that need translation) */}
-          {translation && translation !== message.content && (
+          {/* Translation (only for non-command messages) */}
+          {!isCommand && translation && translation !== message.content && (
             <div className="relative">
               {/* Translation Loading State */}
               {isTranslating && (
@@ -191,12 +248,50 @@ const MessageBubble = React.memo(({ message, isOwnMessage, user, otherUserProfil
             </div>
           )}
         </div>
-        <p className={`
-          text-xs text-black font-semibold mt-1.5
-          ${isOwnMessage ? "text-primary-100" : "text-gray-600 dark:text-gray-400"}
-        `}>
-          {messageTime}
-        </p>
+        <div className="flex items-center justify-between mt-1.5">
+          <div className="flex items-center space-x-2">
+            <p className={`
+              text-xs text-black font-semibold
+              ${isOwnMessage ? "text-primary-100" : "text-gray-600 dark:text-gray-400"}
+            `}>
+              {messageTime}
+            </p>
+            {message.edited_at && (
+              <span className={`text-xs ${
+                isOwnMessage ? "text-primary-200" : "text-gray-500 dark:text-gray-500"
+              }`}>
+                (edited)
+              </span>
+            )}
+          </div>
+          
+          {/* Action Buttons */}
+          <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {/* Reply Button */}
+            <button
+              onClick={() => onReply?.(message)}
+              className={`p-1 rounded-full hover:bg-opacity-20 transition-colors ${
+                isOwnMessage 
+                  ? "hover:bg-primary-200 text-primary-200" 
+                  : "hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400"
+              }`}
+              title="Reply to message"
+            >
+              <ArrowUturnLeftIcon className="w-4 h-4" />
+            </button>
+            
+            {/* Edit Button (only for own messages) */}
+            {isOwnMessage && (
+              <button
+                onClick={() => onEdit?.(message)}
+                className="p-1 rounded-full hover:bg-primary-200 hover:bg-opacity-20 text-primary-200 transition-colors"
+                title="Edit message"
+              >
+                <PencilIcon className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
       
       {/* Friend Profile Modal */}

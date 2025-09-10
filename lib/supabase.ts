@@ -1,7 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://douzrnpcfrxavsefekyr.supabase.co'
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvdXpybnBjZnJ4YXZzZWZla3lyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMjI0MzYsImV4cCI6MjA3MjU5ODQzNn0.BvIMbxLMdBnYiNA9Fx8qLRUJLiYp5LHtfXM8xaVbdXs'
+// Get environment variables
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+// Validate required environment variables
+if (!supabaseUrl) {
+  throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable')
+}
+
+if (!supabaseAnonKey) {
+  throw new Error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable')
+}
 
 console.log('🔧 Supabase Config:', { 
   url: supabaseUrl, 
@@ -9,15 +19,25 @@ console.log('🔧 Supabase Config:', {
   anonKeyPrefix: supabaseAnonKey?.substring(0, 20) + '...'
 })
 
+// Client-side Supabase client (uses anonymous key)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-export const supabaseAdmin = createClient(
-  supabaseUrl,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvdXpybnBjZnJ4YXZzZWZla3lyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzAyMjQzNiwiZXhwIjoyMDcyNTk4NDM2fQ.eWySvr3m9-qRLiJC8AT9i2n4jxZEJ2Os7PftyEFbGzo',
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
+// Server-side Supabase client (uses service role key)
+// ⚠️  This should ONLY be used in API routes or server-side code
+export const supabaseAdmin = (() => {
+  // Only create admin client on server-side
+  if (typeof window === 'undefined') {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!serviceRoleKey) {
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY is required for server-side operations')
     }
+    return createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
   }
-)
+  // Return null on client-side to prevent accidental usage
+  return null
+})()
