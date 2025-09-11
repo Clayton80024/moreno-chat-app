@@ -26,6 +26,7 @@ interface MessageBubbleProps {
   };
   onReply?: (message: Message) => void;
   onEdit?: (message: Message) => void;
+  onContentChange?: () => void;
 }
 
 // Helper function to get country flag from country name
@@ -61,7 +62,7 @@ const renderMessageContent = (content: string, isOwnMessage: boolean, onMentionC
   });
 };
 
-const MessageBubble = React.memo(({ message, isOwnMessage, user, otherUserProfile, onReply, onEdit }: MessageBubbleProps) => {
+const MessageBubble = React.memo(({ message, isOwnMessage, user, otherUserProfile, onReply, onEdit, onContentChange }: MessageBubbleProps) => {
   const { profile } = useAuth();
   const senderProfile = message.sender_profile;
   const messageTime = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -86,6 +87,20 @@ const MessageBubble = React.memo(({ message, isOwnMessage, user, otherUserProfil
       receiverCountry
     }
   );
+
+  // Trigger onContentChange when translation loads
+  React.useEffect(() => {
+    if (translation && !isTranslating && onContentChange) {
+      onContentChange();
+    }
+  }, [translation, isTranslating, onContentChange]);
+
+  // Trigger onContentChange when modal state changes
+  React.useEffect(() => {
+    if (onContentChange) {
+      onContentChange();
+    }
+  }, [showProfileModal, onContentChange]);
 
   // Get country info for display
   const senderCountryInfo = getCountryInfo(senderCountry);

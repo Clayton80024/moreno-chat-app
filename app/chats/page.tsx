@@ -93,17 +93,27 @@ export default function ChatsPage() {
           setReplyingTo(null);
         }
         setMessageInput("");
+        
+        // Auto-scroll to bottom after sending message
+        setTimeout(() => {
+          scrollToBottom();
+        }, 100);
       } catch (error) {
         console.error('Error sending message:', error);
       }
     }
-  }, [messageInput, selectedChatId, isSending, sendChatMessage, editingMessage, replyingTo]);
+  }, [messageInput, selectedChatId, isSending, sendChatMessage, editingMessage, replyingTo, editMessage]);
 
   // Reply handler
   const handleReply = useCallback((message: Message) => {
     setReplyingTo(message);
     setEditingMessage(null);
     setMessageInput("");
+    
+    // Auto-scroll to bottom when starting reply
+    setTimeout(() => {
+      scrollToBottom();
+    }, 100);
   }, []);
 
   // Edit handler
@@ -111,6 +121,11 @@ export default function ChatsPage() {
     setEditingMessage(message);
     setReplyingTo(null);
     setMessageInput(message.content);
+    
+    // Auto-scroll to bottom when starting edit
+    setTimeout(() => {
+      scrollToBottom();
+    }, 100);
   }, []);
 
   // Cancel reply/edit
@@ -118,6 +133,11 @@ export default function ChatsPage() {
     setReplyingTo(null);
     setEditingMessage(null);
     setMessageInput("");
+    
+    // Auto-scroll to bottom when canceling reply/edit
+    setTimeout(() => {
+      scrollToBottom();
+    }, 100);
   }, []);
 
   const handleChatSelect = useCallback(async (chatId: string) => {
@@ -165,6 +185,11 @@ export default function ChatsPage() {
     setMessageInput(newMessage);
     setShowFriendSuggestions(false);
     setFriendSearchQuery("");
+    
+    // Auto-scroll to bottom when friend is selected
+    setTimeout(() => {
+      scrollToBottom();
+    }, 100);
   }, [messageInput, friendCursorPosition, friendSearchQuery]);
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
@@ -283,6 +308,11 @@ export default function ChatsPage() {
     const newMessage = beforeHashtag + emoji + ' ' + afterHashtag;
     setMessageInput(newMessage);
     setShowEmojiSuggestions(false);
+    
+    // Auto-scroll to bottom when emoji is selected
+    setTimeout(() => {
+      scrollToBottom();
+    }, 100);
   }, [messageInput, emojiCursorPosition]);
 
   const getChatDisplayName = (chat: any) => {
@@ -394,6 +424,26 @@ export default function ChatsPage() {
       }, 50);
     }
   }, [messages.length, selectedChatId, messages]); // Include messages array for better reactivity
+
+  // Auto-scroll when typing indicators change
+  useEffect(() => {
+    if (selectedChatId && typingIndicators[selectedChatId] && typingIndicators[selectedChatId].length > 0) {
+      // Auto-scroll when someone starts typing
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+    }
+  }, [selectedChatId, typingIndicators]);
+
+  // Auto-scroll when reply/edit state changes
+  useEffect(() => {
+    if (replyingTo || editingMessage) {
+      // Auto-scroll when entering reply/edit mode
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+    }
+  }, [replyingTo, editingMessage]);
 
   return (
     <div className="flex h-full relative bg-gray-50 dark:bg-gray-900">
@@ -612,6 +662,12 @@ export default function ChatsPage() {
                       otherUserProfile={otherUserProfile}
                       onReply={handleReply}
                       onEdit={handleEdit}
+                      onContentChange={() => {
+                        // Auto-scroll when message content changes (translations, etc.)
+                        setTimeout(() => {
+                          scrollToBottom();
+                        }, 100);
+                      }}
                     />
                   );
                 })}
