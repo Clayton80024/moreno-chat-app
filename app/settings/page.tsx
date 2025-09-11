@@ -15,6 +15,26 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useSimpleTheme } from "@/components/SimpleThemeProvider";
 
+// Coming Soon Blur Component
+function ComingSoonBlur({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative">
+      <div className="blur-sm pointer-events-none select-none">
+        {children}
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl">
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-primary-500 to-accent-500 rounded-full flex items-center justify-center">
+            <span className="text-white font-bold text-xl">🚀</span>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Coming Soon</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400">This feature is under development</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface SettingSection {
   id: string;
   title: string;
@@ -215,8 +235,9 @@ export default function SettingsPage() {
       case "notifications":
         return (
           <div className="space-y-4">
-            <div className="bg-white rounded-xl p-4 lg:p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Notification Settings</h2>
+            <ComingSoonBlur>
+              <div className="bg-white rounded-xl p-4 lg:p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Notification Settings</h2>
               
               <div className="space-y-4">
                 <label className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg cursor-pointer">
@@ -307,15 +328,17 @@ export default function SettingsPage() {
                   </div>
                 </label>
               </div>
-            </div>
+              </div>
+            </ComingSoonBlur>
           </div>
         );
 
       case "privacy":
         return (
           <div className="space-y-4">
-            <div className="bg-white rounded-xl p-4 lg:p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Privacy Settings</h2>
+            <ComingSoonBlur>
+              <div className="bg-white rounded-xl p-4 lg:p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Privacy Settings</h2>
               
               <div className="space-y-4">
                 <div className="p-3">
@@ -386,13 +409,15 @@ export default function SettingsPage() {
                 Manage Blocked Users
               </button>
             </div>
+            </ComingSoonBlur>
           </div>
         );
 
       case "appearance":
         return (
           <div className="space-y-4">
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 lg:p-6">
+            <ComingSoonBlur>
+              <div className="bg-white dark:bg-gray-800 rounded-xl p-4 lg:p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Theme</h2>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Choose your preferred theme. System will follow your device settings.
@@ -447,6 +472,7 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+            </ComingSoonBlur>
           </div>
         );
 
@@ -522,55 +548,59 @@ export default function SettingsPage() {
             </div>
 
             {/* Account Actions */}
-            <div className="bg-white rounded-xl p-4 lg:p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Account Actions</h3>
-              <div className="space-y-3">
-                <button className="w-full text-left px-4 py-3 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-between">
-                  <span>Manage Security Settings</span>
-                  <ChevronRightIcon className="w-4 h-4 text-gray-400" />
-                </button>
-                <button className="w-full text-left px-4 py-3 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-between">
-                  <span>Connected Accounts</span>
-                  <ChevronRightIcon className="w-4 h-4 text-gray-400" />
-                </button>
-                <button className="w-full text-left px-4 py-3 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-between">
-                  <span>Download Your Data</span>
-                  <ChevronRightIcon className="w-4 h-4 text-gray-400" />
-                </button>
-                <button 
-                  onClick={handleSignOut}
-                  className="w-full text-left px-4 py-3 text-sm font-medium border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors flex items-center justify-between"
-                >
-                  <span>Sign Out</span>
-                  <ArrowRightOnRectangleIcon className="w-4 h-4 text-red-500" />
-                </button>
+            <ComingSoonBlur>
+              <div className="bg-white rounded-xl p-4 lg:p-6">
+                <h3 className="font-semibold text-gray-900 mb-4">Account Actions</h3>
+                <div className="space-y-3">
+                  <button className="w-full text-left px-4 py-3 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-between">
+                    <span>Manage Security Settings</span>
+                    <ChevronRightIcon className="w-4 h-4 text-gray-400" />
+                  </button>
+                  <button className="w-full text-left px-4 py-3 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-between">
+                    <span>Connected Accounts</span>
+                    <ChevronRightIcon className="w-4 h-4 text-gray-400" />
+                  </button>
+                  <button className="w-full text-left px-4 py-3 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-between">
+                    <span>Download Your Data</span>
+                    <ChevronRightIcon className="w-4 h-4 text-gray-400" />
+                  </button>
+                  <button 
+                    onClick={handleSignOut}
+                    className="w-full text-left px-4 py-3 text-sm font-medium border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors flex items-center justify-between"
+                  >
+                    <span>Sign Out</span>
+                    <ArrowRightOnRectangleIcon className="w-4 h-4 text-red-500" />
+                  </button>
+                </div>
               </div>
-            </div>
+            </ComingSoonBlur>
 
             {/* Account Statistics */}
-            <div className="bg-white rounded-xl p-4 lg:p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Account Statistics</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-primary-600">0</p>
-                  <p className="text-sm text-gray-500">Messages Sent</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-primary-600">0</p>
-                  <p className="text-sm text-gray-500">Friends</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-primary-600">0</p>
-                  <p className="text-sm text-gray-500">Chats</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-primary-600">
-                    {user?.created_at ? Math.floor((Date.now() - new Date(user.created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0}
-                  </p>
-                  <p className="text-sm text-gray-500">Days Active</p>
+            <ComingSoonBlur>
+              <div className="bg-white rounded-xl p-4 lg:p-6">
+                <h3 className="font-semibold text-gray-900 mb-4">Account Statistics</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-primary-600">0</p>
+                    <p className="text-sm text-gray-500">Messages Sent</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-primary-600">0</p>
+                    <p className="text-sm text-gray-500">Friends</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-primary-600">0</p>
+                    <p className="text-sm text-gray-500">Chats</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-primary-600">
+                      {user?.created_at ? Math.floor((Date.now() - new Date(user.created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0}
+                    </p>
+                    <p className="text-sm text-gray-500">Days Active</p>
+                  </div>
                 </div>
               </div>
-            </div>
+            </ComingSoonBlur>
           </div>
         );
 
