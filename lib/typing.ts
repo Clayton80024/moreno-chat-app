@@ -17,6 +17,7 @@ export interface TypingIndicator {
 export class TypingService {
   private static typingTimeouts = new Map<string, NodeJS.Timeout>()
   private static stopTypingTimeouts = new Map<string, NodeJS.Timeout>()
+  private static typingStates = new Map<string, boolean>() // Track typing state separately
 
   // Test function to check if typing_indicators table is accessible
   static async testTypingTable(): Promise<boolean> {
@@ -110,14 +111,11 @@ export class TypingService {
         this.stopTypingTimeouts.delete(`${userId}-${chatId}`)
       }
 
-      // Check if we already have a typing indicator
+      // Mark as currently typing (this might already be set by handleTyping)
       const typingKey = `${userId}-${chatId}`
-      if (this.typingTimeouts.has(typingKey)) {
-        return // Already typing
-      }
-
-      // Mark as currently typing (timeout is managed by handleTyping)
-      this.typingTimeouts.set(typingKey, true as any)
+      this.typingStates.set(typingKey, true)
+      
+      console.log('🔵 About to send typing indicator to database:', { userId, chatId });
 
       // Send typing indicator to database
       console.log('🔵 Sending typing indicator to database:', { userId, chatId });
@@ -139,13 +137,32 @@ export class TypingService {
         console.error('🔴 Error message:', error.message)
         console.error('🔴 Error details:', error.details)
         console.error('🔴 Error hint:', error.hint)
-        console.error('🔴 Full error object:', JSON.stringify(error, null, 2))
+        
+        // Clear the typing state on error to prevent stuck indicators
+        this.typingStates.set(typingKey, false)
+        
+        // If it's a permission/RLS error, don't spam retries
+        if (error.code === '42501' || error.message?.includes('policy')) {
+          console.warn('🔴 RLS policy error - typing indicators may be disabled')
+          return
+        }
       } else {
         console.log('🔵 Typing indicator sent successfully:', { userId, chatId, data })
       }
     } catch (error) {
       console.error('🔴 Error in startTyping:', error)
       console.error('🔴 Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+      
+      // Clear typing state on any error to prevent stuck indicators
+      const typingKey = `${userId}-${chatId}`
+      this.typingStates.set(typingKey, false)
+      
+      // Clear timeouts on error
+      const timeout = this.typingTimeouts.get(typingKey)
+      if (timeout) {
+        clearTimeout(timeout)
+        this.typingTimeouts.delete(typingKey)
+      }
     }
   }
 
@@ -155,7 +172,14 @@ export class TypingService {
       const typingKey = `${userId}-${chatId}`
 
       // Clear typing state
-      this.typingTimeouts.delete(typingKey)
+      this.typingStates.delete(typingKey) // Use delete instead of setting to false
+      
+      // Clear any active typing timeout
+      const typingTimeout = this.typingTimeouts.get(typingKey)
+      if (typingTimeout) {
+        clearTimeout(typingTimeout)
+        this.typingTimeouts.delete(typingKey)
+      }
 
       // Clear stop typing timeout
       const stopTimeout = this.stopTypingTimeouts.get(typingKey)
@@ -181,6 +205,7 @@ export class TypingService {
       if (error) {
         console.error('🔴 Error stopping typing indicator:', error)
         console.error('🔴 Error details:', error)
+        // Don't throw error for stop typing - it's not critical
       } else {
         console.log('🔵 Typing indicator stopped successfully:', { userId, chatId, data })
       }
@@ -192,19 +217,39 @@ export class TypingService {
   // Debounced typing handler
   static handleTyping(userId: string, chatId: string): void {
     console.log('🔵 TypingService.handleTyping called:', { userId, chatId });
+    console.log('🔵 Current typing states:', Array.from(this.typingStates.entries()));
+    console.log('🔵 Current typing timeouts:', this.typingTimeouts.size);
+    console.log('🔵 Current stop timeouts:', this.stopTypingTimeouts.size);
     
-    const typingKey = `${userId}-${chatId}`
+    const typingKey = `${userId}-${chatId}`;
+    
+    // FORCE RESET if we're stuck in a bad state
+    if (this.typingStates.get(typingKey) && !this.typingTimeouts.has(typingKey)) {
+      console.log('🔧 FORCE RESET: Found stale typing state without timeout, clearing...');
+      this.typingStates.delete(typingKey);
+    }
 
     // Clear existing stop typing timeout
     const stopTimeout = this.stopTypingTimeouts.get(typingKey)
     if (stopTimeout) {
       clearTimeout(stopTimeout)
+      this.stopTypingTimeouts.delete(typingKey)
     }
 
-    // Start typing immediately if not already typing
-    if (!this.typingTimeouts.has(typingKey)) {
-      console.log('🔵 Starting typing immediately:', { userId, chatId });
-      this.startTyping(userId, chatId)
+    // Start typing with debounce if not already typing
+    if (!this.typingStates.get(typingKey)) {
+      console.log('🔵 Starting typing with debounce:', { userId, chatId });
+      
+      // Set typing state immediately to prevent multiple calls
+      this.typingStates.set(typingKey, true)
+      
+      // Set a small delay to prevent spam, then call startTyping
+      const startTimeout = setTimeout(() => {
+        console.log('🔵 Debounce timeout reached, calling startTyping:', { userId, chatId });
+        this.startTyping(userId, chatId)
+      }, 300) // 300ms debounce before starting
+      
+      this.typingTimeouts.set(typingKey, startTimeout)
     } else {
       console.log('🔵 Already typing, extending timeout:', { userId, chatId });
     }
@@ -269,7 +314,7 @@ export class TypingService {
     try {
       console.log('🔵 Clearing typing indicators for user:', userId);
       
-      // Clear local timeouts
+      // Clear local timeouts and states
       for (const [key, timeout] of this.typingTimeouts.entries()) {
         if (key.startsWith(`${userId}-`)) {
           clearTimeout(timeout)
@@ -281,6 +326,13 @@ export class TypingService {
         if (key.startsWith(`${userId}-`)) {
           clearTimeout(timeout)
           this.stopTypingTimeouts.delete(key)
+        }
+      }
+
+      // Clear typing states
+      for (const key of this.typingStates.keys()) {
+        if (key.startsWith(`${userId}-`)) {
+          this.typingStates.delete(key)
         }
       }
 
@@ -329,6 +381,83 @@ export class TypingService {
       console.error('🔴 Error in clearUserTyping:', error)
       console.error('🔴 Error details:', error)
     }
+  }
+
+  // Add a method to completely reset typing state for debugging
+  static resetTypingState(userId: string, chatId: string): void {
+    const typingKey = `${userId}-${chatId}`
+    console.log('🔧 Resetting typing state for:', { userId, chatId })
+    
+    // Clear all local state
+    this.typingStates.delete(typingKey)
+    
+    const typingTimeout = this.typingTimeouts.get(typingKey)
+    if (typingTimeout) {
+      clearTimeout(typingTimeout)
+      this.typingTimeouts.delete(typingKey)
+    }
+    
+    const stopTimeout = this.stopTypingTimeouts.get(typingKey)
+    if (stopTimeout) {
+      clearTimeout(stopTimeout)
+      this.stopTypingTimeouts.delete(typingKey)
+    }
+    
+    console.log('🔧 Reset complete:', {
+      typingStates: Array.from(this.typingStates.entries()),
+      timeouts: this.typingTimeouts.size,
+      stopTimeouts: this.stopTypingTimeouts.size
+    })
+  }
+
+  // Complete cleanup - clears all static maps (useful for app reset/logout)
+  static clearAllTypingData(): void {
+    console.log('🔵 Clearing all typing service data...');
+    
+    // Clear all typing timeouts
+    for (const [key, timeout] of this.typingTimeouts.entries()) {
+      clearTimeout(timeout)
+    }
+    this.typingTimeouts.clear()
+    
+    // Clear all stop typing timeouts
+    for (const [key, timeout] of this.stopTypingTimeouts.entries()) {
+      clearTimeout(timeout)
+    }
+    this.stopTypingTimeouts.clear()
+    
+    // Clear all typing states
+    this.typingStates.clear()
+    
+    console.log('✅ All typing service data cleared');
+  }
+
+  // Cleanup for specific chat (when leaving a chat)
+  static clearChatTyping(chatId: string): void {
+    console.log('🔵 Clearing typing data for chat:', chatId);
+    
+    // Find and clear all entries for this chat
+    for (const [key, timeout] of this.typingTimeouts.entries()) {
+      if (key.endsWith(`-${chatId}`)) {
+        clearTimeout(timeout)
+        this.typingTimeouts.delete(key)
+      }
+    }
+    
+    for (const [key, timeout] of this.stopTypingTimeouts.entries()) {
+      if (key.endsWith(`-${chatId}`)) {
+        clearTimeout(timeout)
+        this.stopTypingTimeouts.delete(key)
+      }
+    }
+    
+    for (const key of this.typingStates.keys()) {
+      if (key.endsWith(`-${chatId}`)) {
+        this.typingStates.delete(key)
+      }
+    }
+    
+    console.log('✅ Chat typing data cleared');
   }
 
   // Simple test function for debugging

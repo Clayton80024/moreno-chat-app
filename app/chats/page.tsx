@@ -523,19 +523,51 @@ export default function ChatsPage() {
               </div>
             </div>
             
-            <div className="flex items-center space-x-1 sm:space-x-2">
-              <button className="p-2 sm:p-2.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                <PhoneIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700 dark:text-gray-300" />
-              </button>
-              <button className="p-2 sm:p-2.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                <VideoCameraIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700 dark:text-gray-300" />
-              </button>
-              <button className="hidden sm:block p-2.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                <MagnifyingGlassIcon className="w-6 h-6 text-gray-700 dark:text-gray-300" />
-              </button>
-              <button className="p-2 sm:p-2.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                <EllipsisVerticalIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700 dark:text-gray-300" />
-              </button>
+            <div className="flex items-center space-x-3 sm:space-x-4">
+              {/* Active Engagement Status */}
+              <div className="text-right">
+                {selectedChatId && typingIndicators[selectedChatId] && typingIndicators[selectedChatId].length > 0 ? (
+                  <>
+                    <div className="text-sm font-semibold text-green-600 dark:text-green-400">
+                      {(() => {
+                        const typingUsers = typingIndicators[selectedChatId];
+                        if (typingUsers.length === 1) {
+                          const user = typingUsers[0];
+                          const userName = user.user_profile?.full_name || user.user_profile?.username || 'Someone';
+                          return `${userName} is typing...`;
+                        } else if (typingUsers.length === 2) {
+                          const user1 = typingUsers[0].user_profile?.full_name || typingUsers[0].user_profile?.username || 'Someone';
+                          const user2 = typingUsers[1].user_profile?.full_name || typingUsers[1].user_profile?.username || 'Someone';
+                          return `${user1} and ${user2} are typing...`;
+                        } else {
+                          return `${typingUsers.length} people are typing...`;
+                        }
+                      })()}
+                    </div>
+                    <div className="text-xs text-green-500 dark:text-green-400">
+                      Active Engagement
+                    </div>
+                  </>
+                ) : isChatOnline(selectedChat) ? (
+                  <>
+                    <div className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                      Online
+                    </div>
+                    <div className="text-xs text-blue-500 dark:text-blue-400">
+                      Active Engagement
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                      Offline
+                    </div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500">
+                      Active Engagement
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -584,23 +616,6 @@ export default function ChatsPage() {
                   );
                 })}
                 
-                {/* Typing Indicator */}
-                {(() => {
-                  console.log('🔍 Typing Debug:', {
-                    selectedChatId,
-                    typingIndicators,
-                    hasTypingForChat: selectedChatId ? typingIndicators[selectedChatId] : null,
-                    typingCount: selectedChatId && typingIndicators[selectedChatId] ? typingIndicators[selectedChatId].length : 0
-                  });
-                  
-                  return selectedChatId && typingIndicators[selectedChatId] && typingIndicators[selectedChatId].length > 0 ? (
-                    <TypingIndicator 
-                      typingUsers={typingIndicators[selectedChatId].map(t => t.user_profile || { id: t.user_id, full_name: null, username: null, avatar_url: null })}
-                      className="mb-2"
-                    />
-                  ) : null;
-                })()}
-                
                 
                 <div ref={messagesEndRef} data-messages-end />
               </div>
@@ -618,8 +633,20 @@ export default function ChatsPage() {
             )}
           </div>
 
+
           {/* Message Input - Fixed to Bottom */}
           <div className="absolute bottom-0 left-0 right-0 px-3 sm:px-4 py-3 sm:py-4 border-t-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-30">
+            
+            {/* Typing Indicator - Above Input */}
+            {selectedChatId && typingIndicators[selectedChatId] && typingIndicators[selectedChatId].length > 0 && (
+              <div className="mb-3">
+                <TypingIndicator 
+                  typingUsers={typingIndicators[selectedChatId].map(t => t.user_profile || { id: t.user_id, full_name: null, username: null, avatar_url: null })}
+                  className=""
+                />
+              </div>
+            )}
+
             {/* Reply/Edit Preview */}
             {(replyingTo || editingMessage) && (
               <div className="mb-3 px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">

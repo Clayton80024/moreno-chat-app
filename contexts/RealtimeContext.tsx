@@ -8,6 +8,7 @@ import { ChatsService, Chat, Message } from '@/lib/chats';
 import { FriendsService, FriendRequest } from '@/lib/friends';
 import { PresenceService, UserPresence } from '@/lib/presence';
 import { TypingService, TypingIndicator } from '@/lib/typing';
+import { SimpleTypingService } from '@/lib/typing-simple';
 
 interface RealtimeContextType {
   // Chat real-time features
@@ -108,9 +109,15 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     return () => {
       clearTimeout(timeoutId);
       // Cleanup on unmount
-      channels.forEach(channel => {
+      console.log('🔵 Cleaning up realtime channels on unmount...');
+      channels.forEach((channel, index) => {
+        console.log(`🔵 Removing channel ${index}:`, channel.topic);
         supabase.removeChannel(channel);
       });
+      // Clear typing indicators when realtime context unmounts
+      if (user) {
+        SimpleTypingService.clearUserTyping(user.id);
+      }
     };
   }, [user]);
 
@@ -492,23 +499,66 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
     newChannels.push(participantsChannel);
 
-    // 6. Typing indicators subscription
-    console.log('🔵 Setting up typing indicators subscription for user:', user.id);
+    // 6. Typing indicators subscription - SIMPLIFIED
+    console.log('🟢 Setting up SIMPLIFIED typing indicators subscription for user:', user.id);
     const typingChannel = supabase
-      .channel(`typing_indicators_${user.id}`)
+      .channel(`typing_simple_${user.id}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'typing_indicators'
       }, async (payload) => {
+        console.log('🟢 ===== SIMPLE TYPING REAL-TIME EVENT RECEIVED =====');
+        console.log('🟢 Event type:', payload.eventType);
+        console.log('🟢 Payload:', payload);
+        console.log('🔵 ===== TYPING REAL-TIME EVENT RECEIVED =====');
+        console.log('🔵 Event type:', payload.eventType);
         console.log('🔵 Raw typing payload received:', payload);
+        console.log('🔵 Payload new data:', payload.new);
+        console.log('🔵 Payload old data:', payload.old);
+        console.log('🔵 =============================================');
         const typingIndicator = payload.new as TypingIndicator;
+        
+        // Add user profile data manually since RLS blocks the join
+        if (typingIndicator && typingIndicator.user_id) {
+          // Find the user profile from friends or participants
+          let userProfile = null;
+          
+          // Try to find in friends list
+          const friend = friends.find(f => f.friend_id === typingIndicator.user_id);
+          if (friend?.friend_profile) {
+            userProfile = {
+              id: friend.friend_profile.id,
+              full_name: friend.friend_profile.full_name,
+              username: friend.friend_profile.username,
+              avatar_url: friend.friend_profile.avatar_url
+            };
+          } else {
+            // Try to find in current chat participants
+            const participant = chatsRef.current
+              .find(chat => chat.id === typingIndicator.chat_id)
+              ?.participants?.find(p => p.user_id === typingIndicator.user_id);
+            
+            if (participant?.user_profile) {
+              userProfile = {
+                id: participant.user_profile.id,
+                full_name: participant.user_profile.full_name,
+                username: participant.user_profile.username,
+                avatar_url: participant.user_profile.avatar_url
+              };
+            }
+          }
+          
+          // Add the profile to the typing indicator
+          typingIndicator.user_profile = userProfile || undefined;
+        }
         
         console.log('🔵 Typing indicator received:', typingIndicator);
         console.log('🔵 Current user:', user.id);
         console.log('🔵 Typing user:', typingIndicator.user_id);
         console.log('🔵 Chat ID:', typingIndicator.chat_id);
         console.log('🔵 Is typing:', typingIndicator.is_typing);
+        console.log('🔵 Added user profile:', typingIndicator.user_profile);
         
         // Only process typing indicators for chats the user is in
         const isParticipant = chatsRef.current.some(chat => chat.id === typingIndicator.chat_id);
@@ -520,12 +570,12 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         
-        // Don't show own typing indicators to the user who is typing
-        // But allow other users to see the typing indicator
-        if (typingIndicator.user_id === user.id) {
-          console.log('🔵 Ignoring own typing indicator for self');
-          return;
-        }
+        // Don't show own typing indicators in the UI, but still process for state management
+        const isOwnTyping = typingIndicator.user_id === user.id;
+        console.log('🔵 Processing typing indicator:', { isOwnTyping, userId: typingIndicator.user_id });
+        
+        // Skip UI update for own typing indicators but don't return early
+        // This allows proper cleanup of own indicators when they expire
         
         setTypingIndicators(prev => {
           const chatId = typingIndicator.chat_id;
@@ -535,11 +585,18 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             chatId,
             currentIndicators: currentIndicators.length,
             isTyping: typingIndicator.is_typing,
-            typingUserId: typingIndicator.user_id
+            typingUserId: typingIndicator.user_id,
+            isOwnTyping
           });
           
           if (typingIndicator.is_typing) {
-            // Add or update typing indicator
+            // For own typing indicators, don't add to UI state but process for consistency
+            if (isOwnTyping) {
+              console.log('🔵 Own typing indicator - not adding to UI state');
+              return prev; // Don't show own typing
+            }
+            
+            // Add or update typing indicator for other users
             const existingIndex = currentIndicators.findIndex(t => t.user_id === typingIndicator.user_id);
             if (existingIndex >= 0) {
               // Update existing
@@ -554,7 +611,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
               return { ...prev, [chatId]: newIndicators };
             }
           } else {
-            // Remove typing indicator
+            // Remove typing indicator (including own)
             const filtered = currentIndicators.filter(t => t.user_id !== typingIndicator.user_id);
             console.log('🔵 Removed typing indicator:', filtered);
             return { ...prev, [chatId]: filtered };
@@ -562,7 +619,14 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         });
       })
       .subscribe((status) => {
-        console.log('🔵 Typing subscription status:', status);
+        console.log('🟢 SIMPLE Typing subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('🟢 ✅ Typing indicators subscription is ACTIVE and listening!');
+        } else if (status === 'CLOSED') {
+          console.log('🟢 ❌ Typing indicators subscription CLOSED!');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.log('🟢 ❌ Typing indicators subscription ERROR!');
+        }
       });
 
     newChannels.push(typingChannel);
@@ -755,8 +819,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
   const handleTyping = useCallback((chatId: string) => {
     if (!user) return;
-    console.log('🔵 RealtimeContext.handleTyping called:', { userId: user.id, chatId });
-    TypingService.handleTyping(user.id, chatId);
+    SimpleTypingService.handleTyping(user.id, chatId);
   }, [user]);
 
   // Cleanup typing indicators when user leaves
@@ -765,8 +828,19 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       // Clear all typing indicators when component unmounts
-      TypingService.clearUserTyping(user.id);
+      SimpleTypingService.clearUserTyping(user.id);
     };
+  }, [user]);
+
+  // Global cleanup when user logs out
+  useEffect(() => {
+    if (!user) {
+      console.log('🟢 User logged out, clearing all simple typing data...');
+      // Clear all typing service data when user logs out
+      SimpleTypingService.clearAll();
+      // Clear local typing indicators state
+      setTypingIndicators({});
+    }
   }, [user]);
 
   // Test typing indicator function
@@ -835,6 +909,33 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         channels.forEach((channel, index) => {
           console.log(`🔍 Channel ${index}:`, channel.topic);
         });
+      };
+
+      // Add reset function for debugging
+      (window as any).resetTyping = (chatId: string) => {
+        if (user) {
+          console.log('🔧 Resetting typing state from global function');
+          TypingService.resetTypingState(user.id, chatId);
+          // Also clear React state
+          setTypingIndicators({});
+        }
+      };
+
+      // Add function to check database directly
+      (window as any).checkTypingInDB = async (chatId: string) => {
+        try {
+          const { data, error } = await supabase
+            .from('typing_indicators')
+            .select('*')
+            .eq('chat_id', chatId);
+          
+          console.log('🔍 TYPING INDICATORS IN DATABASE:', data);
+          if (error) {
+            console.error('🔍 Database query error:', error);
+          }
+        } catch (err) {
+          console.error('🔍 Database check error:', err);
+        }
       };
     }
   }, [debugPresence, testPresence, refreshOnlineFriends, handleTyping, testTypingIndicator, typingIndicators, user, channels]);
