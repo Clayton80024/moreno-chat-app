@@ -388,29 +388,59 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         console.log('🔵 New data:', payload.new);
         console.log('🔵 Old data:', payload.old);
         
-        // Handle different event types
+        // Handle different event types with direct state updates
         if (payload.eventType === 'INSERT') {
-          console.log('🔵 New friend request created');
+          console.log('🔵 New friend request created - adding to state');
+          const newRequest = payload.new as FriendRequest;
+          
+          // Add to appropriate list based on who sent it
+          setFriendRequests(prev => {
+            if (newRequest.sender_id === user.id) {
+              // User sent this request
+              return {
+                ...prev,
+                sent: [newRequest, ...prev.sent.filter(req => req.id !== newRequest.id)]
+              };
+            } else {
+              // User received this request
+              return {
+                ...prev,
+                received: [newRequest, ...prev.received.filter(req => req.id !== newRequest.id)]
+              };
+            }
+          });
+          
         } else if (payload.eventType === 'UPDATE') {
           console.log('🔵 Friend request updated:', payload.new);
-          // If status changed to accepted/declined, remove from pending list
-          if (payload.new.status !== 'pending') {
-            console.log('🔵 Request processed, removing from pending list');
+          const updatedRequest = payload.new as FriendRequest;
+          
+          // Update the request in state
+          setFriendRequests(prev => {
+            const updateInList = (requests: FriendRequest[]) => 
+              requests.map(req => req.id === updatedRequest.id ? updatedRequest : req);
+            
+            return {
+              sent: updateInList(prev.sent),
+              received: updateInList(prev.received)
+            };
+          });
+          
+          // If status changed to accepted, refresh friends list
+          if (updatedRequest.status === 'accepted') {
+            console.log('🔵 Request accepted, refreshing friends list');
+            loadFriends();
           }
+          
         } else if (payload.eventType === 'DELETE') {
-          console.log('🔵 Friend request deleted');
+          console.log('🔵 Friend request deleted - removing from state');
+          const deletedRequest = payload.old as FriendRequest;
+          
+          // Remove from both lists
+          setFriendRequests(prev => ({
+            sent: prev.sent.filter(req => req.id !== deletedRequest.id),
+            received: prev.received.filter(req => req.id !== deletedRequest.id)
+          }));
         }
-        
-        // Always refresh to get the latest state - with a small delay to ensure DB consistency
-        console.log('🔵 Refreshing friend requests in 100ms...');
-        setTimeout(async () => {
-          console.log('🔵 Executing refresh now...');
-          await Promise.all([
-            loadFriendRequests(),
-            loadFriends() // Also refresh friends in case a request was accepted
-          ]);
-          console.log('🔵 Refresh completed');
-        }, 100);
       })
       .subscribe((status) => {
         console.log('🔵 Friend requests channel status:', status);
