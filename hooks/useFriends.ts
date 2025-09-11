@@ -31,30 +31,21 @@ export function useFriendRequests(): UseFriendRequestsReturn {
   }, [friendRequests]);
 
   const sendFriendRequest = useCallback(async (receiverId: string, message?: string) => {
-    console.log('🔵 sendFriendRequest called:', { receiverId, message, user: user?.id, isProcessing });
-    
-    if (!user || isProcessing) {
-      console.log('❌ Cannot send friend request:', { user: !!user, isProcessing });
-      return;
-    }
+    if (!user || isProcessing) return;
     
     setIsProcessing(true);
     setError(null);
     
     try {
-      console.log('🔵 Starting friend request creation process...');
-      
       // Get receiver profile data first for optimistic update
       let receiverProfile = null;
       try {
-        console.log('🔵 Fetching receiver profile for optimistic update...');
         const { data: profile } = await supabase
           .from('user_profiles')
           .select('id, full_name, username, avatar_url, bio, is_online')
           .eq('id', receiverId)
           .single();
         receiverProfile = profile;
-        console.log('✅ Receiver profile fetched:', receiverProfile);
       } catch (profileError) {
         console.warn('⚠️ Could not fetch receiver profile for optimistic update:', profileError);
       }
@@ -78,27 +69,20 @@ export function useFriendRequests(): UseFriendRequestsReturn {
         }
       };
 
-      console.log('🔵 Adding optimistic request:', optimisticRequest);
       // Add optimistic request to state immediately
       addOptimisticFriendRequest(optimisticRequest);
 
-      console.log('🔵 Calling FriendsService.sendFriendRequest...');
       // Send the actual request
       await FriendsService.sendFriendRequest(user.id, receiverId, message);
-      console.log('✅ FriendsService.sendFriendRequest completed successfully');
       
-      console.log('🔵 Refreshing friend requests...');
       // Refresh to get the real data (this will replace the optimistic request)
       await refreshFriendRequests();
-      console.log('✅ Friend requests refreshed');
       
     } catch (err) {
-      console.error('❌ Error in sendFriendRequest:', err);
       setError(err instanceof Error ? err.message : 'Failed to send friend request');
       // The optimistic request will be replaced by the refresh, so no need to manually remove it
     } finally {
       setIsProcessing(false);
-      console.log('🔵 sendFriendRequest completed, isProcessing set to false');
     }
   }, [user, isProcessing, refreshFriendRequests, addOptimisticFriendRequest]);
 

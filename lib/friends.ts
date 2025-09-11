@@ -441,7 +441,19 @@ export class FriendsService {
         } else if (existingRequest.status === 'accepted') {
           throw new Error('You are already friends with this user')
         } else if (existingRequest.status === 'declined') {
-          throw new Error('Your previous friend request was declined. Please wait before sending another request.')
+          console.log('🔵 Previous request was declined, deleting it and creating new one...')
+          // Delete the declined request to allow a new one
+          const { error: deleteError } = await supabase
+            .from('friend_requests')
+            .delete()
+            .eq('id', existingRequest.id)
+          
+          if (deleteError) {
+            console.error('🔴 Error deleting declined request:', deleteError)
+            throw new Error('Failed to clean up previous declined request')
+          }
+          
+          console.log('✅ Declined request deleted, proceeding with new request')
         } else {
           throw new Error('A friend request already exists between you and this user')
         }
