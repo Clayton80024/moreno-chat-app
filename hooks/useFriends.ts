@@ -27,7 +27,9 @@ export function useFriendRequests(): UseFriendRequestsReturn {
 
   // Update local state when real-time data changes
   useEffect(() => {
-    // The real-time context already handles loading friend requests
+    console.log('🔵 useFriendRequests - friendRequests changed:', friendRequests);
+    console.log('🔵 useFriendRequests - sent:', friendRequests.sent);
+    console.log('🔵 useFriendRequests - received:', friendRequests.received);
   }, [friendRequests]);
 
   const sendFriendRequest = useCallback(async (receiverId: string, message?: string) => {

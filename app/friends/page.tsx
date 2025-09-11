@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   UserPlusIcon,
   MagnifyingGlassIcon,
@@ -334,6 +334,13 @@ export default function FriendsPage() {
   const { onlineFriends, refreshFriendRequests } = useRealtime();
   const { addNotification } = useNotifications();
   const { addToast } = useToast();
+
+  // Debug friend requests data
+  useEffect(() => {
+    console.log('🔵 Friends page - sentRequests:', sentRequests);
+    console.log('🔵 Friends page - receivedRequests:', receivedRequests);
+    console.log('🔵 Friends page - activeTab:', activeTab);
+  }, [sentRequests, receivedRequests, activeTab]);
 
   // Optimistic update functions
   const handleDeclineRequest = async (requestId: string) => {

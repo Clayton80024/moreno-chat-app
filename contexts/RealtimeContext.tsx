@@ -391,21 +391,34 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         // Handle different event types with direct state updates
         if (payload.eventType === 'INSERT') {
           console.log('🔵 New friend request created - adding to state');
+          console.log('🔵 Payload new data:', payload.new);
+          console.log('🔵 Current user ID:', user.id);
+          console.log('🔵 Sender ID:', payload.new.sender_id);
+          console.log('🔵 Receiver ID:', payload.new.receiver_id);
+          
           const newRequest = payload.new as FriendRequest;
           
           // Add to appropriate list based on who sent it
           setFriendRequests(prev => {
+            console.log('🔵 Current friend requests state:', prev);
+            
             if (newRequest.sender_id === user.id) {
               // User sent this request
+              console.log('🔵 Adding to SENT requests');
+              const updatedSent = [newRequest, ...prev.sent.filter(req => req.id !== newRequest.id)];
+              console.log('🔵 Updated sent requests:', updatedSent);
               return {
                 ...prev,
-                sent: [newRequest, ...prev.sent.filter(req => req.id !== newRequest.id)]
+                sent: updatedSent
               };
             } else {
               // User received this request
+              console.log('🔵 Adding to RECEIVED requests');
+              const updatedReceived = [newRequest, ...prev.received.filter(req => req.id !== newRequest.id)];
+              console.log('🔵 Updated received requests:', updatedReceived);
               return {
                 ...prev,
-                received: [newRequest, ...prev.received.filter(req => req.id !== newRequest.id)]
+                received: updatedReceived
               };
             }
           });
@@ -444,6 +457,13 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       })
       .subscribe((status) => {
         console.log('🔵 Friend requests channel status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Friend requests channel successfully subscribed');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Friend requests channel error');
+        } else if (status === 'TIMED_OUT') {
+          console.error('❌ Friend requests channel timed out');
+        }
       });
 
     newChannels.push(friendRequestsChannel);
