@@ -111,17 +111,33 @@ export function useFriendRequests(): UseFriendRequestsReturn {
     setError(null);
     
     try {
+      // Optimistically remove the request from UI immediately
+      const optimisticRequest = {
+        id: requestId,
+        sender_id: '',
+        receiver_id: user.id,
+        status: 'declined' as const,
+        created_at: new Date().toISOString(),
+        sender_profile: null,
+        receiver_profile: null
+      };
+      
+      // Remove from received requests immediately
+      addOptimisticFriendRequest(optimisticRequest);
+      
       await FriendsService.declineFriendRequest(requestId, user.id);
       
-      // Single refresh after success - the real-time subscription will handle additional updates
+      // Refresh to get the real data (this will replace the optimistic update)
       await refreshFriendRequests();
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to decline friend request');
+      // Refresh to restore correct state if optimistic update failed
+      await refreshFriendRequests();
     } finally {
       setIsProcessing(false);
     }
-  }, [user, isProcessing, refreshFriendRequests]);
+  }, [user, isProcessing, refreshFriendRequests, addOptimisticFriendRequest]);
 
   const cancelRequest = useCallback(async (requestId: string) => {
     if (!user || isProcessing) return;
@@ -130,18 +146,34 @@ export function useFriendRequests(): UseFriendRequestsReturn {
     setError(null);
     
     try {
+      // Optimistically remove the request from UI immediately
+      const optimisticRequest = {
+        id: requestId,
+        sender_id: user.id,
+        receiver_id: '',
+        status: 'cancelled' as const,
+        created_at: new Date().toISOString(),
+        sender_profile: null,
+        receiver_profile: null
+      };
+      
+      // Remove from sent requests immediately
+      addOptimisticFriendRequest(optimisticRequest);
+      
       // For now, we'll decline our own sent request
       await FriendsService.declineFriendRequest(requestId, user.id);
       
-      // Single refresh after success - the real-time subscription will handle additional updates
+      // Refresh to get the real data (this will replace the optimistic update)
       await refreshFriendRequests();
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to cancel friend request');
+      // Refresh to restore correct state if optimistic update failed
+      await refreshFriendRequests();
     } finally {
       setIsProcessing(false);
     }
-  }, [user, isProcessing, refreshFriendRequests]);
+  }, [user, isProcessing, refreshFriendRequests, addOptimisticFriendRequest]);
 
   return {
     sentRequests: friendRequests.sent,

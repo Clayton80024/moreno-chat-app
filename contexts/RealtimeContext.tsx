@@ -702,10 +702,29 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addOptimisticFriendRequest = useCallback((request: any) => {
-    setFriendRequests(prev => ({
-      ...prev,
-      sent: [...prev.sent, request]
-    }));
+    setFriendRequests(prev => {
+      // If request status is 'declined', remove it from received requests
+      if (request.status === 'declined') {
+        return {
+          ...prev,
+          received: prev.received.filter(req => req.id !== request.id)
+        };
+      }
+      
+      // If request status is 'cancelled', remove it from sent requests
+      if (request.status === 'cancelled') {
+        return {
+          ...prev,
+          sent: prev.sent.filter(req => req.id !== request.id)
+        };
+      }
+      
+      // Otherwise, add to sent requests (for new requests)
+      return {
+        ...prev,
+        sent: [...prev.sent, request]
+      };
+    });
   }, []);
 
   const loadChatMessages = useCallback(async (chatId: string) => {

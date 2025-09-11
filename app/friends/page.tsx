@@ -347,7 +347,7 @@ export default function FriendsPage() {
       addToast({
         type: 'success',
         title: 'Friend Request Declined',
-        message: 'Request has been declined.',
+        message: 'Request has been declined and removed.',
         duration: 2000
       });
     } catch (error) {
